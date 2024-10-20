@@ -121,7 +121,7 @@ python run_yopo.py --train=1
 It may take 2-3 hours to traing with default dataset size and training epoch. If everything goes well, the training log is as follows:
 
 <p align="center">
-    <img src="/docs/train_log.png" alt="train_log" />
+    <img src="/docs/train_log.png" alt="train_log" width="60%"/>
 </p>
 
 Besides, you can refer to [quadrotor_env.yaml](./flightlib/configs/quadrotor_env.yaml), [vec_env.yaml](./flightlib/config/vec_env.yaml) and [traj_opt.yaml](./flightlib/config/traj_opt.yaml) for some modifications of quadrotor, environment, and trajectory optimization.
