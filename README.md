@@ -8,7 +8,7 @@ Video of this paper can be found: [YouTube](https://youtu.be/m7u1MYIuIn4), [bili
 Some realworld experiment: [YouTube](https://youtu.be/LHvtbKmTwvE), [bilibili](https://www.bilibili.com/video/BV1jBpve5EkP)
 
 ## Introduction:
-We proposed **a learning-based planner for autonomous navigation in obstacle-dense environments** which intergrats (i) perception and mapping, (ii) front-end path searching, and (iii) back-end optimization of classical methods into a single network. 
+We propose **a learning-based planner for autonomous navigation in obstacle-dense environments** which intergrats (i) perception and mapping, (ii) front-end path searching, and (iii) back-end optimization of classical methods into a single network. 
 
 Considering the multi-modal nature of the navigation problem and to avoid local minima around initial values, our approach adopts a set of motion primitives as anchor to cover the searching space, and predicts the offsets and scores of primitives for further improvement (like the one-stage object detector YOLO). 
 
