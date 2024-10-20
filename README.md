@@ -223,7 +223,7 @@ python yopo_trt_transfer.py --trial=1 --epoch=0 --iter=0
 ```
 cd ~/YOPO/
 conda activate yopo
-python test_yopo_ros.py --use_tensorrt=True
+python test_yopo_ros.py --use_tensorrt=1
 ```
 
 ## Finally
