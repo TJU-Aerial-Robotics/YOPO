@@ -35,6 +35,12 @@ This project is developed based on the open-source simulator [Flightmare](https:
 
 The project was tested with Ubuntu 20.04 and Jetson Orin/Xavier NX.
 
+**0. Clone the code**
+```
+git clone git@github.com:TJU-Aerial-Robotics/YOPO.git
+```
+We will take the directory `~/YOPO` as example in the following.
+
 **1. Flightmare Dependencies**
 
 ```
