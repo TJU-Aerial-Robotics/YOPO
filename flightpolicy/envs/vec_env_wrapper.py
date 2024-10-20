@@ -25,7 +25,6 @@ class FlightEnvVec(VecEnv):
         self.world_box = np.zeros([6], dtype=np.float32)
         self.wrapper.getWorldBox(self.world_box)  # xyz_min, xyz_max
         self.reward_names = self.wrapper.getRewardNames()
-        self.pretrained = False
 
         # observations
         self._traj_cost = np.zeros([self.num_envs, 1], dtype=np.float32)  # cost of current pred

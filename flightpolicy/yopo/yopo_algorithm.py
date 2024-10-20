@@ -11,7 +11,7 @@ import numpy as np
 import torch as th
 from torch.nn import functional as F
 from stable_baselines3.common.type_aliases import RolloutReturn, TrainFreq, TrainFrequencyUnit
-from stable_baselines3.common.utils import should_collect_more_steps, get_schedule_fn, configure_logger
+from stable_baselines3.common.utils import should_collect_more_steps, get_schedule_fn, configure_logger, update_learning_rate
 from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.common.utils import get_device
 
@@ -119,7 +119,7 @@ class YopoAlgorithm:
             cost_losses = []   # Performance (score) of prediction
             score_losses = []  # Accuracy of the predicted score
             for step, (depth, pos, quat, obs_b, map_id) in enumerate(data_loader):  # obs: body frame
-                if depth.shape[0] != self.batch_size:   # batch size == num of env
+                if depth.shape[0] != self.batch_size:  # batch size == num of env
                     continue
                 n_updates = n_updates + 1
                 depth = depth.to(self.device)
@@ -172,81 +172,50 @@ class YopoAlgorithm:
                     path = policy_path + "/epoch{}_iter{}.pth".format(epoch_, step)
                     th.save({"state_dict": self.policy.state_dict(), "data": self.policy.get_constructor_parameters()}, path)
 
-    # 模仿学习: 已弃用(暂未删除以备后续使用)
-    # 0、reset_state、get_depth、reset_goal
-    # 1、执行若干步（env_num * 200）
-    # 2、训练若干步（batch_size = env_num, 训200次=1eposide）
-    # 3、reset_state、get_depth、reset_goal
     def imitation_learning(
             self,
             total_timesteps,
-            callback=None,
-            log_interval=4,
-            eval_env=None,
-            eval_freq=-1,
-            n_eval_episodes=5,
-            tb_log_name="YOPO",
-            eval_log_path=None,
+            log_interval,
             reset_num_timesteps=True,
     ):
 
-        # 0. 初始化第一次观测
-        total_timesteps, callback = self._setup_learn(
-            total_timesteps,
-            eval_env,
-            callback,
-            eval_freq,
-            n_eval_episodes,
-            eval_log_path,
-            reset_num_timesteps,
-            tb_log_name,
-        )
-        self.pretrained = self.env.pretrained
-        callback.on_training_start(locals(), globals())
+        # 0. setup learn and init the first observation
+        self._setup_learn(total_timesteps, reset_num_timesteps)
 
         while self.num_timesteps < total_timesteps:
-            # 1. 数据收集
+            # 1. Rollout and Collect Data into Buffer
             rollout = self.collect_rollouts(
                 self.env,
                 train_freq=self.train_freq,
-                action_noise=self.action_noise,
-                callback=callback,
-                replay_buffer=self.replay_buffer,
-                log_interval=log_interval,
+                replay_buffer=self.replay_buffer
             )
-
             if rollout.continue_training is False:
                 break
 
-            # 2. 训练模型
+            # 2. Train the Policy
             if self.num_timesteps > 0 and self.num_timesteps > self.learning_starts:
-                # If no `gradient_steps` is specified,
-                # do as many gradients steps as steps performed during the rollout
+                # If no `gradient_steps` is specified, do as many gradients steps as steps performed during the rollout
                 gradient_steps = self.gradient_steps if self.gradient_steps >= 0 else rollout.episode_timesteps
-                # Special case when the user passes `gradient_steps=0`
-                if gradient_steps > 0:
+                if gradient_steps > 0: # Special case when the user passes `gradient_steps=0`
                     self.train(batch_size=self.batch_size, gradient_steps=gradient_steps)
                     self.reset_state()
 
             iteration = int(self.num_timesteps / (self.train_freq.frequency * self.env.num_envs))
 
-            # 3. 重置环境
+            # 3. reset the environment
             if self.change_env_freq > 0 and iteration % self.change_env_freq == 0:
                 self.env.spawnTreesAndSavePointcloud()
                 self._map_id = self._map_id + 1
                 self.reset_state()
 
-            # 4. 终端打印log
+            # 4. print the log and save weight
             if log_interval is not None and iteration % log_interval[0] == 0:
                 self._dump_logs()
-
             if log_interval is not None and iteration % log_interval[1] == 0:
                 policy_path = self.logger.get_dir() + "/Policy"
                 os.makedirs(policy_path, exist_ok=True)
                 path = policy_path + "/epoch0_iter{}.pth".format(iteration)
                 th.save({"state_dict": self.policy.state_dict(), "data": self.policy.get_constructor_parameters()}, path)
-
-        callback.on_training_end()
 
     def test_policy(self, num_rollouts: int = 10):
         max_ep_length = 400
@@ -294,19 +263,16 @@ class YopoAlgorithm:
 
     def train(self, gradient_steps: int, batch_size: int) -> None:
         """
-            Sample the replay buffer and do the updates
-            (gradient descent and update target networks)
+            Imitation learning: sample data from the replay buffer and train the Policy
         """
-        # Switch to train mode (this affects batch norm / dropout)
-        self.policy.set_training_mode(True)
-        # Update learning rate according to schedule (TODO in supervised learning)
-        self._update_learning_rate(self.policy.optimizer)
+        self.policy.set_training_mode(True) # Switch to train mode (this affects batch norm / dropout)
+        update_learning_rate(self.policy.optimizer, self.lr_schedule(self._current_progress_remaining))
 
         cost_losses = []
         score_losses = []  # dy, dz, r, p, vx, vy, vz
         for _ in range(gradient_steps):
             # Sample replay buffer
-            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+            replay_data = self.replay_buffer.sample(batch_size)
             depth = th.from_numpy(replay_data.depths).to(self.device)
             pos = replay_data.observations[:, 0:3]
             vel_acc_b = replay_data.observations[:, 3:9]
@@ -354,68 +320,42 @@ class YopoAlgorithm:
     def collect_rollouts(
             self,
             env,
-            callback,
             train_freq,
             replay_buffer,
-            action_noise=None,
-            log_interval=None,
     ) -> RolloutReturn:
 
         self.policy.set_training_mode(False)
-
         num_collected_steps, num_collected_episodes = 0, 0
-
         assert isinstance(env, VecEnv), "You must pass a VecEnv"
         assert train_freq.frequency > 0, "Should at least collect one step or episode."
-
         if env.num_envs > 1:
             assert train_freq.unit == TrainFrequencyUnit.STEP, "You must use only one env when doing episodic training."
-
-        callback.on_rollout_start()
         continue_training = True
 
-        """
-        1、pred endstate
-        2、get obs: self._last_obs = env.step(endstate)
-        3、get depth: self._last_depth = env.getDepthImage()
-        4、record to buffer and back to 1
-        """
         while should_collect_more_steps(train_freq, num_collected_steps, num_collected_episodes):
 
-            # 1. pred endstate used latest policy or pre-trained policy
-            sampled_endstate = self._sample_action(action_noise, env.num_envs)
+            # 1. pred endstate used latest policy
+            sampled_endstate = self._sample_action()
 
-            # 2. perform action
+            # 2. perform action and get new observation
             new_obs, rewards, dones = env.step(sampled_endstate)
 
             self.num_timesteps += env.num_envs
             num_collected_steps += 1
 
-            # Give access to local variables
-            callback.update_locals(locals())
-            # Only stop training if return value is False, not when it is None.
-            if callback.on_step() is False:
-                return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes,
-                                     continue_training=False)
-
             # 3. store the last obs, depth, and goal
-            # self._update_info_buffer(infos, dones)
             self._store_transition(replay_buffer)
-            self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
+            self._current_progress_remaining = 1.0 - float(self.num_timesteps) / float(self._total_timesteps)
 
-            # 4. update the obs, depth, goal, and reset the goal for the done-env
+            # 4. update the obs, depth, and reset the goal for the done-env
             self._last_obs = new_obs
             self._last_depth = env.getDepthImage()
 
             for idx, done in enumerate(dones):
                 if done:
-                    # Update stats
                     num_collected_episodes += 1
-                    self._episode_num += 1
                     # reset goal for the 'done' env
                     self._last_goal[idx] = self.get_random_goal(self._last_obs[idx])
-
-        callback.on_rollout_end()
 
         return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training)
 
@@ -468,37 +408,22 @@ class YopoAlgorithm:
             costs_[i][indices] = 0.0
         return costs_
 
-    def _setup_learn(
-            self,
-            total_timesteps,
-            eval_env=None,
-            callback=None,
-            eval_freq=10000,
-            n_eval_episodes=5,
-            log_path=None,
-            reset_num_timesteps=True,
-            tb_log_name="run",
-    ):
+    def _setup_learn(self, total_timesteps, reset_num_timesteps=True):
+        # reset the time info
+        self.start_time = time.time()
+        if reset_num_timesteps:
+            self.num_timesteps = 0  # steps of sampling
+            self._n_updates = 0     # steps of policy updating
+        self._total_timesteps = total_timesteps
+        self._num_timesteps_at_start = self.num_timesteps
+
         # ----------------- Init the First Observation  -----------------
-        # super()._setup_learn() 中： self._last_obs = self.env.reset()
-        total_timesteps_, callback_ = super()._setup_learn(
-            total_timesteps,
-            eval_env,
-            callback,
-            eval_freq,
-            n_eval_episodes,
-            log_path,
-            reset_num_timesteps,
-            tb_log_name,
-        )
+        self._last_obs = self.env.reset()
         self._last_depth = self.env.getDepthImage()
         self._last_goal = np.zeros([self.env.num_envs, 3], dtype=np.float32)
         for i in range(0, self.env.num_envs):
             self._last_goal[i] = self.get_random_goal(self._last_obs[i])
         self._map_id = np.zeros((self.env.num_envs, 1), dtype=np.float32)
-
-        return total_timesteps_, callback_
-
 
     def _sample_action(self) -> np.ndarray:
         """
@@ -509,7 +434,7 @@ class YopoAlgorithm:
         obs = self._last_obs.copy()
         goal_w = self._last_goal.copy()
         depth = th.from_numpy(self._last_depth).to(self.device)
-        # wxyz 四元数的逆[w, -x, -y, -z]
+        # [w, x, y, z] inv() of quat: [w, -x, -y, -z]
         quat_bw = -obs[:, 9:13]
         quat_bw[:, 0] = -quat_bw[:, 0]
         vel_acc_norm_b = self.normalize_obs(obs[:, 3:9])
@@ -546,12 +471,7 @@ class YopoAlgorithm:
         depth = deepcopy(self._last_depth)
         map_id = deepcopy(self._map_id)
 
-        replay_buffer.add(
-            obs,
-            goal,
-            depth,
-            map_id
-        )
+        replay_buffer.add(obs, goal, depth, map_id)
 
     def get_random_goal(self, uav_state=None):
         world = self.env.world_box
@@ -564,8 +484,8 @@ class YopoAlgorithm:
             random_goal = random_numbers * world_scale + world_center
         # 2. Use goal in front of the UAV (for better imitation learning)
         else:
-            q_wb = uav_state[9:]
-            p_wb = uav_state[0:3]
+            q_wb = uav_state[9:].copy()
+            p_wb = uav_state[0:3].copy()
             goal = np.random.randn(3) + np.array([2, 0, 0])
             goal_dir = goal / np.linalg.norm(goal)
             random_goal_b = 50 * goal_dir
