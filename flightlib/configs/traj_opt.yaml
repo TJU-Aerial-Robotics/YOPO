@@ -1,0 +1,64 @@
+vel_max: 6.0
+# segment_time = 2 * radio / vel_max
+
+# IMPORTANT PARAM: weight of penalties (6m/s)
+ws: 0.00004
+wc: 0.001
+wl: 0.00
+wg: 0.0002
+
+#ws: 0.00004
+#wc: 0.001
+#wl: 0.02
+#wg: 0.0001
+
+# trajectory and primitive parma
+horizon_num: 5
+vertical_num: 3
+horizon_camera_fov: 90.0
+vertical_camera_fov: 60.0
+horizon_anchor_fov: 30
+vertical_anchor_fov: 30
+goal_length: 10
+radio_range: 4.0    # planning horizon: 2 * radio_range
+vel_fov: 90.0       # not use currently
+radio_num: 1        # 1 just ok
+vel_num: 1          # 1 just ok
+vel_prefile: 0.0    # 0 just ok
+
+# For data efficiency, we randomly sample multiple vel and acc for each depth image with the following the distribution.
+# values at normalized speed (actual speed can be denormalized by multiplying v_multiple)
+# 单位数据倍数： v_multiple = 0.5 * v_max = radio / time
+# v数据的均值： v_mean = v_multiple * v_mean_unit
+# v数据的方差： v_var = v_multiple^2 * v_var_unit
+# a数据的均值： v_mean = v_multiple^2 * a_mean_unit
+# a数据的方差： v_var = v_multiple^4 * a_var_unit
+vx_mean_unit: 1.5
+vy_mean_unit: 0.0
+vz_mean_unit: 0.0
+vx_var_unit: 0.15
+vy_var_unit: 0.45
+vz_var_unit: 0.1
+ax_mean_unit: 0.0
+ay_mean_unit: 0.0
+az_mean_unit: 0.0
+ax_var_unit: 0.0278
+ay_var_unit: 0.05
+az_var_unit: 0.0278
+
+# penalties
+alpha: 10.0
+d0: 1.2
+r: 0.6
+
+alphav: 2.0
+v0: 3.5
+rv: 1.5
+
+alphaa: 2.0
+a0: 3.5
+ra: 1.5
+
+# deprecated weight
+wv: 0.0
+wa: 0.0

@@ -1,0 +1,26 @@
+quadrotor_env:
+  collect_data: yes       # yes in Data Collection (random init state); no in Imitation Learning and Testing
+  bounding_box: [60.0, 60.0, 2.0]     # spawn quadrotor within this bounding box
+  bounding_box_origin: [-10, 20, 2.5]
+  sim_dt: 0.1             # sim_dt in imitation learning and testing
+
+data_collection:
+  roll_var: 0.01
+  pitch_var: 0.01
+
+rgb_camera_left:
+  on: yes 
+  t_BC: [0.0, 0.0, 0.1]   # translational vector of the camera with repect to the body frame
+  r_BC: [0.0, 0.0, -90]   # rotational angle (roll, pitch, yaw) of the camera in degree.
+  width: 160
+  height: 90
+  fov: 90.0               # Horizontal FOV
+  enable_depth: yes 
+  enable_segmentation: no # not used
+  enable_opticalflow: no  # not used
+
+# Enable Stereo depth when rgb_camera_right on.
+rgb_camera_right:
+  on: no
+  t_BC: [0.0, -0.2, 0.1]  # translational vector of the camera with repect to the body frame
+  r_BC: [0.0, 0.0, -90]   # rotational angle (roll, pitch, yaw) of the camera in degree.

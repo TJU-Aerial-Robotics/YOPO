@@ -1,0 +1,31 @@
+---
+BasedOnStyle: Google
+UseTab: ForIndentation
+TabWidth: 4
+ColumnLimit: 150
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: true
+IndentWidth: 4
+Language: Cpp
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: None
+SortUsingDeclarations: true
+SpaceAfterTemplateKeyword: false
+SpaceInEmptyParentheses: false
+Standard: Cpp11
+#圆括号之后,多行内容,进行对齐
+AlignAfterOpenBracket: Align
+#连续赋值时，对齐所有等号
+AlignConsecutiveAssignments: true
+#连续声明时，对齐所有声明的变量名
+#AlignConsecutiveDeclarations: true
+AllowShortLoopsOnASingleLine: false
+#对齐连续的尾随的注释
+AlignTrailingComments: true
+#将简单的语句块放到一个单行
+AllowShortBlocksOnASingleLine: false
+#if (a) return;放单行 属性：Never、WithoutElse没有else的可以放单行、OnlyFirstIf只有第一个if放单行、AllIfsAndElse总是把简短的if, else if和else语句放在同一行。
+AllowShortIfStatementsOnASingleLine: false
+---
