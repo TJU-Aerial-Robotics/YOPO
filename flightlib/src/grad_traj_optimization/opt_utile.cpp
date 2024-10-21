@@ -44,69 +44,30 @@ void getLatticeGuiding(std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> 
 	}
 }
 
-Eigen::MatrixXd getAInverse(double Time) {
-    static Eigen::MatrixXd A_inv = Eigen::MatrixXd::Zero(6, 6);
-    static double previousTime = -1.0;
-
-    if (Time != previousTime) {
-        const static auto Factorial = [](int x) {
-            int fac = 1;
-            for (int i = x; i > 0; i--)
-                fac = fac * i;
-            return fac;
-        };
-
-        Eigen::MatrixXd A = Eigen::MatrixXd::Zero(6, 6);
-        for (int i = 0; i < 3; i++) {
-            A(2 * i, i) = Factorial(i);
-            for (int j = i; j < 6; j++) {
-                A(2 * i + 1, j) = Factorial(j) / Factorial(j - i) * pow(Time, j - i);
-            }
-        }
-
-        A_inv = A.inverse();
-        previousTime = Time;
-    }
-
-    return A_inv;
-}
-
 Eigen::MatrixXd solveCoeffFromBoundaryState(const Eigen::Vector3d &Pos_init, const Eigen::Vector3d &Vel_init, const Eigen::Vector3d &Acc_init,
                                             const Eigen::Vector3d &Pos_end, const Eigen::Vector3d &Vel_end, const Eigen::Vector3d &Acc_end,
                                             double Time) {
+	// Solution of Boundary Value Problem for a 5th-Order Polynomial
 	Eigen::MatrixXd PolyCoeff(1, 3 * 6);
 	Eigen::VectorXd Px(6), Py(6), Pz(6);
-
-	Eigen::MatrixXd A_inv = getAInverse(Time);
+	
+	Eigen::MatrixXd A_inv(6,6);
+	A_inv << 1, 0, 0, 0, 0, 0,
+             0, 0, 1, 0, 0, 0,
+             0, 0, 0, 0, 1.0 / 2.0, 0,
+            -10.0 / pow(Time, 3), 10.0 / pow(Time, 3), -6.0 / pow(Time, 2), -4.0 / pow(Time, 2), -3.0 / (2.0 * Time), 1.0 / (2.0 * Time),
+             15.0 / pow(Time, 4), -15.0 / pow(Time, 4), 8.0 / pow(Time, 3), 7.0 / pow(Time, 3), 3.0 / (2.0 * pow(Time, 2)), -1.0 / pow(Time, 2),
+            -6.0 / pow(Time, 5), 6.0 / pow(Time, 5), -3.0 / pow(Time, 4), -3.0 / pow(Time, 4), -1.0 / (2.0 * pow(Time, 3)), 1.0 / (2.0 * pow(Time, 3));
+    
 
 	/*   Produce the dereivatives in X, Y and Z axis directly.  */
 	Eigen::VectorXd Dx = Eigen::VectorXd::Zero(6);
 	Eigen::VectorXd Dy = Eigen::VectorXd::Zero(6);
 	Eigen::VectorXd Dz = Eigen::VectorXd::Zero(6);
 
-	Dx(0) = Pos_init(0);
-	Dy(0) = Pos_init(1);
-	Dz(0) = Pos_init(2);
-
-	Dx(1) = Pos_end(0);
-	Dy(1) = Pos_end(1);
-	Dz(1) = Pos_end(2);
-
-	Dx(2) = Vel_init(0);
-	Dy(2) = Vel_init(1);
-	Dz(2) = Vel_init(2);
-
-	Dx(3) = Vel_end(0);
-	Dy(3) = Vel_end(1);
-	Dz(3) = Vel_end(2);
-
-	Dx(4) = Acc_init(0);
-	Dy(4) = Acc_init(1);
-	Dz(4) = Acc_init(2);
-
-	Dx(5) = Acc_end(0);
-	Dy(5) = Acc_end(1);
-	Dz(5) = Acc_end(2);
+    Dx(0) = Pos_init(0); Dx(1) = Pos_end(0); Dx(2) = Vel_init(0); Dx(3) = Vel_end(0); Dx(4) = Acc_init(0); Dx(5) = Acc_end(0);
+    Dy(0) = Pos_init(1); Dy(1) = Pos_end(1); Dy(2) = Vel_init(1); Dy(3) = Vel_end(1); Dy(4) = Acc_init(1); Dy(5) = Acc_end(1);
+    Dz(0) = Pos_init(2); Dz(1) = Pos_end(2); Dz(2) = Vel_init(2); Dz(3) = Vel_end(2); Dz(4) = Acc_init(2); Dz(5) = Acc_end(2);
 
     Px = A_inv * Dx;
     Py = A_inv * Dy;
