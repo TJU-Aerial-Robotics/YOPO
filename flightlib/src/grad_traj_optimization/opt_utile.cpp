@@ -44,27 +44,40 @@ void getLatticeGuiding(std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> 
 	}
 }
 
-// TODO: 改为硬编码
+Eigen::MatrixXd getAInverse(double Time) {
+    static Eigen::MatrixXd A_inv = Eigen::MatrixXd::Zero(6, 6);
+    static double previousTime = -1.0;
+
+    if (Time != previousTime) {
+        const static auto Factorial = [](int x) {
+            int fac = 1;
+            for (int i = x; i > 0; i--)
+                fac = fac * i;
+            return fac;
+        };
+
+        Eigen::MatrixXd A = Eigen::MatrixXd::Zero(6, 6);
+        for (int i = 0; i < 3; i++) {
+            A(2 * i, i) = Factorial(i);
+            for (int j = i; j < 6; j++) {
+                A(2 * i + 1, j) = Factorial(j) / Factorial(j - i) * pow(Time, j - i);
+            }
+        }
+
+        A_inv = A.inverse();
+        previousTime = Time;
+    }
+
+    return A_inv;
+}
+
 Eigen::MatrixXd solveCoeffFromBoundaryState(const Eigen::Vector3d &Pos_init, const Eigen::Vector3d &Vel_init, const Eigen::Vector3d &Acc_init,
                                             const Eigen::Vector3d &Pos_end, const Eigen::Vector3d &Vel_end, const Eigen::Vector3d &Acc_end,
                                             double Time) {
 	Eigen::MatrixXd PolyCoeff(1, 3 * 6);
 	Eigen::VectorXd Px(6), Py(6), Pz(6);
 
-	const static auto Factorial = [](int x) {
-		int fac = 1;
-		for (int i = x; i > 0; i--)
-			fac = fac * i;
-		return fac;
-	};
-
-	/*   Produce Mapping Matrix A to the entire trajectory.   */
-	Eigen::MatrixXd A = Eigen::MatrixXd::Zero(6, 6);
-	for (int i = 0; i < 3; i++) {
-		A(2 * i, i) = Factorial(i);
-		for (int j = i; j < 6; j++)
-			A(2 * i + 1, j) = Factorial(j) / Factorial(j - i) * pow(Time, j - i);
-	}
+	Eigen::MatrixXd A_inv = getAInverse(Time);
 
 	/*   Produce the dereivatives in X, Y and Z axis directly.  */
 	Eigen::VectorXd Dx = Eigen::VectorXd::Zero(6);
@@ -95,9 +108,9 @@ Eigen::MatrixXd solveCoeffFromBoundaryState(const Eigen::Vector3d &Pos_init, con
 	Dy(5) = Acc_end(1);
 	Dz(5) = Acc_end(2);
 
-	Px = A.inverse() * Dx;
-	Py = A.inverse() * Dy;
-	Pz = A.inverse() * Dz;
+    Px = A_inv * Dx;
+    Py = A_inv * Dy;
+    Pz = A_inv * Dz;
 
 	PolyCoeff.block(0, 0, 1, 6)  = Px.segment(0, 6).transpose();
 	PolyCoeff.block(0, 6, 1, 6)  = Py.segment(0, 6).transpose();
@@ -110,9 +123,8 @@ void getPositionFromCoeff(Eigen::Vector3d &pos, Eigen::MatrixXd coeff, int index
 	int s    = index;
 	double t = time;
 	float x  = coeff(s, 0) + coeff(s, 1) * t + coeff(s, 2) * pow(t, 2) + coeff(s, 3) * pow(t, 3) + coeff(s, 4) * pow(t, 4) + coeff(s, 5) * pow(t, 5);
-	float y = coeff(s, 6) + coeff(s, 7) * t + coeff(s, 8) * pow(t, 2) + coeff(s, 9) * pow(t, 3) + coeff(s, 10) * pow(t, 4) + coeff(s, 11) * pow(t, 5);
-	float z =
-	    coeff(s, 12) + coeff(s, 13) * t + coeff(s, 14) * pow(t, 2) + coeff(s, 15) * pow(t, 3) + coeff(s, 16) * pow(t, 4) + coeff(s, 17) * pow(t, 5);
+	float y  = coeff(s, 6) + coeff(s, 7) * t + coeff(s, 8) * pow(t, 2) + coeff(s, 9) * pow(t, 3) + coeff(s, 10) * pow(t, 4) + coeff(s, 11) * pow(t, 5);
+	float z  = coeff(s, 12) + coeff(s, 13) * t + coeff(s, 14) * pow(t, 2) + coeff(s, 15) * pow(t, 3) + coeff(s, 16) * pow(t, 4) + coeff(s, 17) * pow(t, 5);
 
 	pos(0) = x;
 	pos(1) = y;
@@ -124,8 +136,7 @@ void getVelocityFromCoeff(Eigen::Vector3d &vel, Eigen::MatrixXd coeff, int index
 	double t = time;
 	float vx = coeff(s, 1) + 2 * coeff(s, 2) * pow(t, 1) + 3 * coeff(s, 3) * pow(t, 2) + 4 * coeff(s, 4) * pow(t, 3) + 5 * coeff(s, 5) * pow(t, 4);
 	float vy = coeff(s, 7) + 2 * coeff(s, 8) * pow(t, 1) + 3 * coeff(s, 9) * pow(t, 2) + 4 * coeff(s, 10) * pow(t, 3) + 5 * coeff(s, 11) * pow(t, 4);
-	float vz =
-	    coeff(s, 13) + 2 * coeff(s, 14) * pow(t, 1) + 3 * coeff(s, 15) * pow(t, 2) + 4 * coeff(s, 16) * pow(t, 3) + 5 * coeff(s, 17) * pow(t, 4);
+	float vz = coeff(s, 13) + 2 * coeff(s, 14) * pow(t, 1) + 3 * coeff(s, 15) * pow(t, 2) + 4 * coeff(s, 16) * pow(t, 3) + 5 * coeff(s, 17) * pow(t, 4);
 
 	vel(0) = vx;
 	vel(1) = vy;
