@@ -29,7 +29,7 @@ Compared to giving expert demonstrations for imitation in imitation learning or 
 
 ## Acknowledgements: 
 
-This project is developed based on the open-source simulator [Flightmare](https://github.com/uzh-rpg/flightmare) and the gradient computation is modified from [grad_traj_optimization](https://github.com/HKUST-Aerial-Robotics/grad_traj_optimization), thanks for their excellent work!
+This project is developed based on the open-source simulator [Flightmare](https://github.com/uzh-rpg/flightmare), the gradient computation is modified from [grad_traj_optimization](https://github.com/HKUST-Aerial-Robotics/grad_traj_optimization), and the signed distance field is built by [sdf_tools](https://github.com/UM-ARM-Lab/sdf_tools). thanks for their excellent work!
 
 ## Installation
 

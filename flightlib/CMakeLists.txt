@@ -171,7 +171,6 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdf_tools)
 # Create file lists for flightlib source
 file(GLOB_RECURSE FLIGHTLIB_SOURCES
 	src/bridges/*.cpp
-	src/dynamics/*.cpp
 	src/objects/*.cpp
 	src/sensors/*.cpp
 	src/sensors/*.cu

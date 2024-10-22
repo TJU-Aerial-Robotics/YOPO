@@ -12,7 +12,6 @@
 #include <iostream>
 // flightlib
 #include "flightlib/bridges/unity_bridge.hpp"
-#include "flightlib/common/command.hpp"
 #include "flightlib/common/logger.hpp"
 #include "flightlib/common/math.hpp"
 #include "flightlib/common/quad_state.hpp"
