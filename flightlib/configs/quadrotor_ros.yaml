@@ -24,6 +24,7 @@ rgb_camera_right:
 
 unity:
   spawn_trees: true
+  save_pointcloud: true               # set to 'false' to save startup time, if visualization is not needed.
   avg_tree_spacing: 4.0
   bounding_box: [80.0, 80.0, 11.0]    # spawn objects within this bounding box
   bounding_box_origin: [-10, 20, 2.5]

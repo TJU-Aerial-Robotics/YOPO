@@ -44,6 +44,7 @@ FlightPilot::FlightPilot(const ros::NodeHandle& nh, const ros::NodeHandle& pnh)
 	spawnTreesAndSavePointCloud();
 
 	timer_main_loop_ = nh_.createTimer(ros::Rate(main_loop_freq_), &FlightPilot::mainLoopCallback, this);
+	std::cout<<"[FlightRos] Ros Node is Ready!"<<std::endl;
 }
 
 FlightPilot::~FlightPilot() { disconnectUnity(); }
@@ -153,11 +154,13 @@ bool FlightPilot::setUnity(const bool render) {
 }
 
 bool FlightPilot::spawnTreesAndSavePointCloud() {
-	if (!unity_ready_ || unity_bridge_ptr_ == nullptr)
+	if (!unity_ready_ || unity_bridge_ptr_ == nullptr || !spawn_tree_)
 		return false;
 
 	unity_bridge_ptr_->spawnTrees(bounding_box_, bounding_box_origin_, avg_tree_spacing_);
 
+	if (!save_pointcloud_)
+		return true;
 	// Saving point cloud during the testing is much time-consuming, but can be used for evaluation.
 	// The following can be commented if evaluation is not needed.
 	Vector<3> min_corner = bounding_box_origin_ - 0.5 * bounding_box_;
@@ -195,6 +198,8 @@ bool FlightPilot::loadParams(const YAML::Node& cfg) {
 	unity_render_      = cfg["unity_render"].as<bool>();
 	Scalar quad_size_i = cfg["quad_size"].as<Scalar>();
 	quad_size_         = Vector<3>(quad_size_i, quad_size_i, quad_size_i);
+	spawn_tree_		   = cfg["unity"]["spawn_trees"].as<bool>();
+	save_pointcloud_   = cfg["unity"]["save_pointcloud"].as<bool>();
 	avg_tree_spacing_  = cfg["unity"]["avg_tree_spacing"].as<Scalar>();
 	for (int i = 0; i < 3; ++i) {
 		bounding_box_(i)        = cfg["unity"]["bounding_box"][i].as<Scalar>();

@@ -69,6 +69,8 @@ class FlightPilot {
 	SceneID scene_id_{UnityScene::WAREHOUSE};
 	bool unity_ready_{false};
 	bool unity_render_{false};
+	bool spawn_tree_{true};
+	bool save_pointcloud_{true};
 	RenderMessage_t unity_output_;
 	uint16_t receive_id_{0};
 	FrameID frameID{0};
