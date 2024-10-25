@@ -166,12 +166,12 @@ class YopoNet:
         if self.verbose:
             self.time_interpolation = self.time_interpolation + (time.time() - start)
             self.count_interpolation = self.count_interpolation + 1
-            print("interpolation time:", self.time_interpolation / self.count_interpolation)
+            print("Time Consuming: interpolation:", self.time_interpolation / self.count_interpolation)
 
         # cv2.imshow("1", depth_[0][0])
         # cv2.waitKey(1)
-        self.new_depth = True
         self.depth = depth_.astype(np.float32)
+        self.new_depth = True
 
     def callback_set_goal(self, data):
         self.goal = np.asarray([data.pose.position.x, data.pose.position.y, 2])
@@ -200,9 +200,11 @@ class YopoNet:
                 endstate_pred = endstate_pred.squeeze()
                 time3 = time.time()
             else:
+                time1 = time.time()
                 endstate_pred, score_pred = self.policy.predict(depth, obs_norm_input, return_all_preds=self.visualize)
                 endstate_pred = endstate_pred.cpu().numpy().squeeze()
                 score_pred = score_pred.cpu().numpy()
+                time2 = time3 = time.time()
 
             # Transform the prediction(body frame) to the world frame with the attitude in inference
             # Replacing PyTorch calculations on CUDA with NumPy calculations on the CPU (speed increased by 10x)
@@ -230,8 +232,8 @@ class YopoNet:
                 self.time_forward = self.time_forward + (time2 - time1)
                 self.time_process = self.time_process + (time3 - time2)
                 self.count = self.count + 1
-                print("time forward:", self.time_forward / self.count, "process:", self.time_process / self.count,
-                      "prepare:", self.time_prepare / self.count)
+                print("Time Consuming: prepare:", self.time_prepare / self.count, "; forward:", self.time_forward / self.count,
+                      "; process:", self.time_process / self.count)
 
             # publish
             if not self.visualize:
