@@ -78,7 +78,7 @@ conda activate yopo
 
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 pip install opencv-python
-pip install gym stable-baselines3==1.5.0 
+pip install gym==0.21.0 stable-baselines3==1.5.0 
 pip install scipy scikit-build ruamel-yaml==0.17.21 numpy==1.22.3 tensorboard==2.9.1 empy catkin_pkg
 ```
 **5. build the flightlib** 

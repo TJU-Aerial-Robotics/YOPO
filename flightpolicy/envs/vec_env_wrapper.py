@@ -34,7 +34,7 @@ class FlightEnvVec(VecEnv):
         self._gray_img_obs = np.zeros([self.num_envs, self.img_width * self.img_height], dtype=np.uint8)
         self._depth_img_obs = np.zeros([self.num_envs, self.img_width * self.img_height], dtype=np.float32)
         self._reward = np.zeros([self.num_envs, self.reward_dim], dtype=np.float32)
-        self._done = np.zeros((self.num_envs), dtype=np.bool)
+        self._done = np.zeros((self.num_envs), dtype=bool)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # observation: [p_wb, v_b, a_b, q_wb] (in Body Frame); action: dp_pred; reward: cost
