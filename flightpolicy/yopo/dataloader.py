@@ -35,7 +35,9 @@ class YopoDataset(Dataset):
         self.positions = np.empty((0, 3))
         self.quaternions = np.empty((0, 4))
         subfolders = [f.path for f in os.scandir(data_dir) if f.is_dir()]
-        subfolders.sort(key=lambda x: os.path.basename(x).lower())
+        subfolders.sort(key=lambda x: int(os.path.basename(x)))
+        for folder in subfolders:
+            print(folder)
         for i in range(len(subfolders)):
             img_dir = subfolders[i]
             file_names = [filename
