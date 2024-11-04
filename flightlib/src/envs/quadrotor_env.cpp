@@ -24,10 +24,10 @@ QuadrotorEnv::QuadrotorEnv(const std::string &cfg_path) : EnvBase() {
 	rew_dim_ = 1;
 
 	// 3、define planner
-	traj_opt_bridge = new TrajOptimizationBridge();
+	traj_opt_bridge = std::make_shared<TrajOptimizationBridge>();
 
 	// 5、add camera
-	sgm_.reset(new sgm_gpu::SgmGpu(width_, height_));
+	sgm_ = std::make_shared<sgm_gpu::SgmGpu>(width_, height_);
 
 	if (!configCamera(cfg_)) {
 		logger_.error("Cannot config RGB Camera. Something wrong with the config file");
@@ -39,7 +39,7 @@ QuadrotorEnv::QuadrotorEnv(const std::string &cfg_path) : EnvBase() {
 	steps_        = 0;
 }
 
-QuadrotorEnv::~QuadrotorEnv() { delete traj_opt_bridge; }
+QuadrotorEnv::~QuadrotorEnv() {}
 
 bool QuadrotorEnv::reset(Ref<Vector<>> obs, const bool random) {
 	quad_state_.setZero();

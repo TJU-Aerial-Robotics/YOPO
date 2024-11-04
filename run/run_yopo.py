@@ -113,6 +113,7 @@ def main():
         model.policy.load_state_dict(saved_variables["state_dict"], strict=False)
         model.test_policy(num_rollouts=20)
 
+    print("Run YOPO Finish!")
 
 if __name__ == "__main__":
     main()

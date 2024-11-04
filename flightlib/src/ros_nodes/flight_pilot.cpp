@@ -15,14 +15,9 @@ FlightPilot::FlightPilot(const ros::NodeHandle& nh, const ros::NodeHandle& pnh)
 
 	// initialization
 	quad_state_.setZero();
-	if (scene_id_ == UnityScene::NATUREFOREST) {
-		quad_state_.x(QS::POSX) = 51;   // 41-61
-		quad_state_.x(QS::POSY) = 108;  // 98-118
-		quad_state_.x(QS::POSZ) = 34;
-	}
 	quad_ptr_->reset(quad_state_);
 
-	sgm_.reset(new sgm_gpu::SgmGpu(width_, height_));
+	sgm_ = std::make_shared<sgm_gpu::SgmGpu>(width_, height_);
 
 	// initialize subscriber and publisher
 	left_img_pub = nh_.advertise<sensor_msgs::Image>("RGB_image", 1);
@@ -44,7 +39,7 @@ FlightPilot::FlightPilot(const ros::NodeHandle& nh, const ros::NodeHandle& pnh)
 	spawnTreesAndSavePointCloud();
 
 	timer_main_loop_ = nh_.createTimer(ros::Rate(main_loop_freq_), &FlightPilot::mainLoopCallback, this);
-	std::cout<<"[FlightRos] Ros Node is Ready!"<<std::endl;
+	std::cout << "[FlightRos] Ros Node is Ready!" << std::endl;
 }
 
 FlightPilot::~FlightPilot() { disconnectUnity(); }
@@ -198,7 +193,7 @@ bool FlightPilot::loadParams(const YAML::Node& cfg) {
 	unity_render_      = cfg["unity_render"].as<bool>();
 	Scalar quad_size_i = cfg["quad_size"].as<Scalar>();
 	quad_size_         = Vector<3>(quad_size_i, quad_size_i, quad_size_i);
-	spawn_tree_		   = cfg["unity"]["spawn_trees"].as<bool>();
+	spawn_tree_        = cfg["unity"]["spawn_trees"].as<bool>();
 	save_pointcloud_   = cfg["unity"]["save_pointcloud"].as<bool>();
 	avg_tree_spacing_  = cfg["unity"]["avg_tree_spacing"].as<Scalar>();
 	for (int i = 0; i < 3; ++i) {

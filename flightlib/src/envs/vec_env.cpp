@@ -295,18 +295,18 @@ bool VecEnv<EnvBase>::spawnTreesAndSavePointcloud(int ply_id_in, float spacing) 
 	usleep(1 * 1e6);  // waitting 1s for generating completely
 
 	// KDtree, for collision detection
-	pcl::search::KdTree<pcl::PointXYZ> kdtree;
+	std::shared_ptr<pcl::search::KdTree<pcl::PointXYZ>> kdtree = std::make_shared<pcl::search::KdTree<pcl::PointXYZ>>();
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 	std::cout << "Map Path: " << ply_path_ + "pointcloud-" + std::to_string(ply_id) + ".ply" << std::endl;
 	pcl::io::loadPLYFile<pcl::PointXYZ>(ply_path_ + "pointcloud-" + std::to_string(ply_id) + ".ply", *cloud);
-	kdtree.setInputCloud(cloud);  // 0.3s
+	kdtree->setInputCloud(cloud);  // 0.3s
 
 	// ESDF, for gradient calculation (map_id is required)
 	Eigen::Vector3d map_boundary_min, map_boundary_max;
 	std::shared_ptr<sdf_tools::SignedDistanceField> esdf_map = traj_opt::SdfConstruction(cloud, map_boundary_min, map_boundary_max);
 
 	for (int i = 0; i < num_envs_; i++) {
-		envs_[i]->addKdtree(std::make_shared<pcl::search::KdTree<pcl::PointXYZ>>(kdtree));
+		envs_[i]->addKdtree(kdtree);
 		envs_[i]->addESDFMap(esdf_map);
 		envs_[i]->addMapSize(map_boundary_min, map_boundary_max);
 	}

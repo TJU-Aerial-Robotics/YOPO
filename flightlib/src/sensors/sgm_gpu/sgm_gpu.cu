@@ -47,9 +47,19 @@ SgmGpu::SgmGpu(const int cols, const int rows)
 SgmGpu::~SgmGpu() {
   freeMemory();
 
-  cudaStreamDestroy(stream1_);
-  cudaStreamDestroy(stream2_);
-  cudaStreamDestroy(stream3_);
+  // 设置为 nullptr，防止重复销毁
+  if (stream1_) {
+	  cudaStreamDestroy(stream1_);
+	  stream1_ = nullptr;
+  }
+  if (stream2_) {
+	  cudaStreamDestroy(stream2_);
+	  stream2_ = nullptr;
+  }
+  if (stream3_) {
+	  cudaStreamDestroy(stream3_);
+	  stream3_ = nullptr;
+  }
 }
 
 void SgmGpu::allocateMemory(uint32_t cols, uint32_t rows) {

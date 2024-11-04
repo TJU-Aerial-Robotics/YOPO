@@ -101,7 +101,7 @@ class QuadrotorEnv final : public EnvBase {
 	// trajectory optimization
 	int map_idx_{0};
 	Vector<3> goal_;
-	TrajOptimizationBridge *traj_opt_bridge;
+	std::shared_ptr<TrajOptimizationBridge> traj_opt_bridge;
 
 	// data collection
 	Scalar roll_var_, pitch_var_;
