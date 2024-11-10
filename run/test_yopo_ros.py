@@ -79,8 +79,7 @@ class YopoNet:
         self.goal_pub = rospy.Publisher("/yopo_net/goal", Float32MultiArray, queue_size=1)
         # ros subscriber
         self.odom_sub = rospy.Subscriber(odom_topic, Odometry, self.callback_odometry, queue_size=1, tcp_nodelay=True)
-        self.odom_ref_sub = rospy.Subscriber("/juliett/state_ref/odom", Odometry, self.callback_odometry_ref,
-                                             queue_size=1, tcp_nodelay=True)
+        self.odom_ref_sub = rospy.Subscriber("/juliett/state_ref/odom", Odometry, self.callback_odometry_ref, queue_size=1, tcp_nodelay=True)
         self.depth_sub = rospy.Subscriber(depth_topic, Image, self.callback_depth, queue_size=1, tcp_nodelay=True)
         self.goal_sub = rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.callback_set_goal, queue_size=1)
         self.timer_net = rospy.Timer(rospy.Duration(1. / self.config['network_frequency']), self.test_policy)
@@ -96,42 +95,31 @@ class YopoNet:
     # the following frame (The planner is planning from the desired state, instead of the actual state)
     def callback_odometry_ref(self, data):
         if not self.odom_ref_init:
-            print("odom ref init")
             self.odom_ref_init = True
         self.odom_ref = data
         self.new_odom = True
 
     def process_odom(self):
         # Rwb
-        Rotation_wb = R.from_quat([self.odom.pose.pose.orientation.x,
-                                   self.odom.pose.pose.orientation.y,
-                                   self.odom.pose.pose.orientation.z,
-                                   self.odom.pose.pose.orientation.w]).as_matrix()
+        Rotation_wb = R.from_quat([self.odom.pose.pose.orientation.x, self.odom.pose.pose.orientation.y,
+                                   self.odom.pose.pose.orientation.z, self.odom.pose.pose.orientation.w]).as_matrix()
         self.Rotation_wc = np.dot(Rotation_wb, self.Rotation_bc)
 
         if self.odom_ref_init:
             odom_data = self.odom_ref
             # vel_b
-            vel_w = np.array([odom_data.twist.twist.linear.x,
-                              odom_data.twist.twist.linear.y,
-                              odom_data.twist.twist.linear.z])
+            vel_w = np.array([odom_data.twist.twist.linear.x, odom_data.twist.twist.linear.y, odom_data.twist.twist.linear.z])
             vel_b = np.dot(np.linalg.inv(self.Rotation_wc), vel_w)
-            # acc_b
-            acc_w = np.array([odom_data.twist.twist.angular.x,  # acc stored in angular in our ref_state topic
-                              odom_data.twist.twist.angular.y,
-                              odom_data.twist.twist.angular.z])
+            # acc_b (acc stored in angular in our ref_state topic)
+            acc_w = np.array([odom_data.twist.twist.angular.x, odom_data.twist.twist.angular.y, odom_data.twist.twist.angular.z])
             acc_b = np.dot(np.linalg.inv(self.Rotation_wc), acc_w)
         else:
             odom_data = self.odom
             vel_b = np.array([0.0, 0.0, 0.0])
             acc_b = np.array([0.0, 0.0, 0.0])
 
-        # pose
-        pos = np.array([odom_data.pose.pose.position.x,
-                        odom_data.pose.pose.position.y,
-                        odom_data.pose.pose.position.z])
-
-        # goal_dir
+        # pose and goal_dir
+        pos = np.array([odom_data.pose.pose.position.x, odom_data.pose.pose.position.y, odom_data.pose.pose.position.z])
         goal_w = (self.goal - pos) / np.linalg.norm(self.goal - pos)
         goal_b = np.dot(np.linalg.inv(self.Rotation_wc), goal_w)
 
@@ -143,15 +131,12 @@ class YopoNet:
     def callback_depth(self, data):
         max_dis = 20.0
         min_dis = 0.03
-        if self.env == '435':
-            scale = 0.001
-        elif self.env == 'flightmare':
-            scale = 1.0
+        scale = {'435': 0.001, 'flightmare': 1.0}.get(self.env, 1.0)
 
         try:
             depth_ = self.bridge.imgmsg_to_cv2(data, "32FC1")
         except:
-            print("CV_bridge ERROR: The ROS path is not included in Python Path!")
+            print("CV_bridge ERROR: Possible solutions may be found at https://github.com/TJU-Aerial-Robotics/YOPO/issues/2")
 
         if depth_.shape[0] != self.height or depth_.shape[1] != self.width:
             depth_ = cv2.resize(depth_, (self.width, self.height), interpolation=cv2.INTER_NEAREST)
@@ -257,15 +242,14 @@ class YopoNet:
                 all_endstate_pred.layout.dim[1].label = "endstate_and_score_num"
                 self.all_endstate_pub.publish(all_endstate_pred)
             self.goal_pub.publish(Float32MultiArray(data=self.goal))
-        else:
-            if not self.new_odom:  # start a new round
-                self.odom_ref_init = False
+        # start a new round
+        elif not self.new_odom:
+            self.odom_ref_init = False
 
     def trt_process(self, input_tensor: torch.Tensor, return_all_preds=False) -> torch.Tensor:
         batch_size = input_tensor.shape[0]
         input_tensor = input_tensor.cpu().numpy()
-        input_tensor = input_tensor.reshape(batch_size, 10,
-                                            self.lattice_space.horizon_num * self.lattice_space.vertical_num)
+        input_tensor = input_tensor.reshape(batch_size, 10, self.lattice_space.horizon_num * self.lattice_space.vertical_num)
         endstate_pred = input_tensor[:, 0:9, :]
         score_pred = input_tensor[:, 9, :]
 
@@ -292,9 +276,7 @@ class YopoNet:
             convert the observation from body frame to primitive frame,
             and then concatenate it with the depth features (to ensure the translational invariance)
         """
-        obs_return = np.ones(
-            (obs.shape[0], self.lattice_space.vertical_num, self.lattice_space.horizon_num, obs.shape[1]),
-            dtype=np.float32)
+        obs_return = np.ones((obs.shape[0], self.lattice_space.vertical_num, self.lattice_space.horizon_num, obs.shape[1]), dtype=np.float32)
         id = 0
         v_b = obs[:, 0:3]
         a_b = obs[:, 3:6]
@@ -348,8 +330,7 @@ class YopoNet:
             trt_output = self.policy(torch.from_numpy(depth).to(self.device), obs_input.to(self.device))
             self.trt_process(trt_output, return_all_preds=True)
         else:
-            self.policy.predict(torch.from_numpy(depth).to(self.device), obs_input.to(self.device),
-                                return_all_preds=True)
+            self.policy.predict(torch.from_numpy(depth).to(self.device), obs_input.to(self.device), return_all_preds=True)
 
 
 def parser():

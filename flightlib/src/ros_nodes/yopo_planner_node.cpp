@@ -4,7 +4,6 @@
 #include <ros/ros.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <yaml-cpp/yaml.h>
-
 #include <Eigen/Core>
 
 #include "flightlib/controller/PositionCommand.h"
@@ -20,7 +19,7 @@ quadrotor_msgs::PositionCommand pos_cmd_last;
 bool odom_init     = false;
 bool odom_ref_init = false;
 bool yopo_init     = false;
-bool done          = false;
+bool arrive        = false;
 float traj_time    = 2.0;
 float sample_t     = 0.0;
 float last_yaw_    = 0;  // NWU
@@ -33,7 +32,7 @@ Eigen::Vector3d goal_(100, 0, 2);
 Eigen::Quaterniond quat_(1, 0, 0, 0);
 Eigen::Vector3d last_pos_(0, 0, 0), last_vel_(0, 0, 0), last_acc_(0, 0, 0);
 
-ros::Publisher trajs_visual_pub, best_traj_visual_pub, state_ref_pub, ctrl_pub, mpc_ctrl_pub, so3_ctrl_pub, lattice_trajs_visual_pub;
+ros::Publisher trajs_visual_pub, best_traj_visual_pub, state_ref_pub, our_ctrl_pub, so3_ctrl_pub, lattice_trajs_visual_pub;
 ros::Subscriber odom_sub, odom_ref_sub, yopo_best_sub, yopo_all_sub, goal_sub;
 
 void odom_cb(const nav_msgs::Odometry::Ptr msg) {
@@ -52,10 +51,9 @@ void odom_cb(const nav_msgs::Odometry::Ptr msg) {
 	// check if reach the goal
 	Eigen::Vector3d dist(odom_msg.pose.pose.position.x - goal_(0), odom_msg.pose.pose.position.y - goal_(1),
 	                     odom_msg.pose.pose.position.z - goal_(2));
-	if (dist.norm() < 4) {
-		if (!done)
-			printf("Done!\n");
-		done = true;
+	if (dist.norm() < 4 && !arrive) {
+		printf("Arrive!\n");
+		arrive = true;
 	}
 }
 
@@ -65,7 +63,7 @@ void goal_cb(const std_msgs::Float32MultiArray::Ptr msg) {
 	goal_(1)                  = msg->data[1];
 	goal_(2)                  = msg->data[2];
 	if (last_goal != goal_)
-		done = false;
+		arrive = false;
 }
 
 void traj_to_pcl(TrajOptimizationBridge* traj_opt_bridge_input, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, double cost = 0.0) {
@@ -225,23 +223,23 @@ void ref_pub_cb(const ros::TimerEvent&) {
 	if (!yopo_init)
 		return;
 
-	if (done) {
+	if (arrive) {
+		odom_ref_init = false;
 		// single state control for smoother performance
 		ctrl_ref_last.header.stamp = ros::Time::now();
 		ctrl_ref_last.vel_ref      = {0, 0, 0};
 		ctrl_ref_last.acc_ref      = {0, 0, 0};
 		ctrl_ref_last.ref_mask     = 1;
-		ctrl_pub.publish(ctrl_ref_last);
-
-		// un-smooth, just for simpler demonstration
-		pos_cmd_last.header.stamp   = ros::Time::now();
-		pos_cmd_last.velocity.x     = 0.95 * pos_cmd_last.velocity.x;
-		pos_cmd_last.velocity.y     = 0.95 * pos_cmd_last.velocity.y;
-		pos_cmd_last.velocity.z     = 0.95 * pos_cmd_last.velocity.z;
-		pos_cmd_last.acceleration.x = 0.95 * pos_cmd_last.acceleration.x;
-		pos_cmd_last.acceleration.y = 0.95 * pos_cmd_last.acceleration.y;
-		pos_cmd_last.acceleration.z = 0.95 * pos_cmd_last.acceleration.z;
-		pos_cmd_last.yaw_dot        = 0.95 * pos_cmd_last.yaw_dot;
+		our_ctrl_pub.publish(ctrl_ref_last);
+		// larger position error, just for simpler demonstration
+		pos_cmd_last.header.stamp  = ros::Time::now();
+		// pos_cmd_last.velocity.x     = 0.0;
+		// pos_cmd_last.velocity.y     = 0.0;
+		// pos_cmd_last.velocity.z     = 0.0;
+		// pos_cmd_last.acceleration.x = 0.0;
+		// pos_cmd_last.acceleration.y = 0.0;
+		// pos_cmd_last.acceleration.z = 0.0;
+		// pos_cmd_last.yaw_dot        = 0.0;
 		so3_ctrl_pub.publish(pos_cmd_last);
 		return;
 	}
@@ -261,7 +259,7 @@ void ref_pub_cb(const ros::TimerEvent&) {
 	ctrl_msg.yaw_ref      = -yaw_yawdot.first;
 	ctrl_msg.ref_mask     = 7;
 	ctrl_ref_last         = ctrl_msg;
-	ctrl_pub.publish(ctrl_msg);
+	our_ctrl_pub.publish(ctrl_msg);
 
 	// SO3 Simulator & SO3 Controller
 	quadrotor_msgs::PositionCommand cmd;
@@ -333,7 +331,7 @@ int main(int argc, char** argv) {
 	state_ref_pub            = nh.advertise<nav_msgs::Odometry>("/juliett/state_ref/odom", 10);
 
 	// our PID Controller (realworld) & SO3 Controller (simulation)
-	ctrl_pub     = nh.advertise<quad_pos_ctrl::ctrl_ref>("/juliett_pos_ctrl_node/controller/ctrl_ref", 10);
+	our_ctrl_pub = nh.advertise<quad_pos_ctrl::ctrl_ref>("/juliett_pos_ctrl_node/controller/ctrl_ref", 10);
 	so3_ctrl_pub = nh.advertise<quadrotor_msgs::PositionCommand>("/so3_control/pos_cmd", 10);
 
 	odom_sub      = nh.subscribe("/juliett/ground_truth/odom", 1, yopo_net::odom_cb, ros::TransportHints().tcpNoDelay());
