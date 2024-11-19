@@ -86,6 +86,10 @@ class YopoNet:
         print("YOPO Net Node Ready!")
         rospy.spin()
 
+    def callback_set_goal(self, data):
+        self.goal = np.asarray([data.pose.position.x, data.pose.position.y, 2])
+        print("New goal:", self.goal)
+
     # the first frame
     def callback_odometry(self, data):
         self.odom = data
@@ -158,10 +162,7 @@ class YopoNet:
         self.depth = depth_.astype(np.float32)
         self.new_depth = True
 
-    def callback_set_goal(self, data):
-        self.goal = np.asarray([data.pose.position.x, data.pose.position.y, 2])
-        print("New goal:", self.goal)
-
+    # TODO: Remove the test_policy to callback_depth directly?
     def test_policy(self, _timer):
         if self.new_depth and self.new_odom:
             self.new_odom = False
