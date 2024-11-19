@@ -162,7 +162,7 @@ class YopoNet:
         self.depth = depth_.astype(np.float32)
         self.new_depth = True
 
-    # TODO: Remove the test_policy to callback_depth directly?
+    # TODO: Move the test_policy to callback_depth directly?
     def test_policy(self, _timer):
         if self.new_depth and self.new_odom:
             self.new_odom = False
