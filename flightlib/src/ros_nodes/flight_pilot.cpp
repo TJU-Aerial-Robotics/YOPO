@@ -35,7 +35,7 @@ FlightPilot::FlightPilot(const ros::NodeHandle& nh, const ros::NodeHandle& pnh)
 	setUnity(unity_render_);
 	connectUnity();
 	if (!unity_ready_)
-		ROS_ERROR("Start the gazebo and unity first!");
+		ROS_ERROR("[FlightRos] Connection Faild! Start the Flightmare Unity First!");
 	spawnTreesAndSavePointCloud();
 
 	timer_main_loop_ = nh_.createTimer(ros::Rate(main_loop_freq_), &FlightPilot::mainLoopCallback, this);

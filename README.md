@@ -43,6 +43,8 @@ We will take the directory `~/YOPO` as example in the following.
 
 **1. Flightmare Dependencies**
 
+Make sure that you have already set up the basic dependencies such as ROS, CUDA, and Conda.
+
 ```
 sudo apt-get update && apt-get install -y --no-install-recommends \
    build-essential \
@@ -72,14 +74,17 @@ flightrender/
 ```
 
 **4. Create a conda virtual environment.**
+
+Below are the versions of my python libraries. (You can remove the version numbers if compatibility issues occur in the future.)
+
 ```
 conda create --name yopo python=3.8
 conda activate yopo
 
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install pytorch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1  pytorch-cuda=11.8 -c pytorch -c nvidia
 pip install opencv-python
 pip install gym==0.21.0 stable-baselines3==1.5.0 
-pip install scipy scikit-build ruamel-yaml==0.17.21 numpy==1.22.3 tensorboard==2.9.1 empy catkin_pkg
+pip install scipy==1.10.1 scikit-build==0.18.1 ruamel-yaml==0.17.21 numpy==1.22.3 tensorboard==2.8.0 empy catkin_pkg
 ```
 **5. build the flightlib** 
 ```
