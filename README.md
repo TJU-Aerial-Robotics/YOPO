@@ -141,7 +141,7 @@ You can test the policy using pre-trained weights we provide at `run/saved/YOPO_
 ```
 cd ~/YOPO/run
 conda activate yopo
-python run_yopo.py --train=0 --render=1 --trial=1 --epoch=0 --iter=0 
+python run_yopo.py --train=0 --render=1 --trial=1 --epoch=0 --iter=0 --supervised=0
 ```
 
 It will take a while for unity setup, and then you will see:
