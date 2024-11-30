@@ -7,6 +7,11 @@ Video of this paper can be found: [YouTube](https://youtu.be/m7u1MYIuIn4), [bili
 
 Some realworld experiment: [YouTube](https://youtu.be/LHvtbKmTwvE), [bilibili](https://www.bilibili.com/video/BV1jBpve5EkP)
 
+<table>
+    <td align="center" style="border: none;"><img src="docs/realworld_1.gif" alt="Fig1" style="width: 100%;"></td>
+    <td align="center" style="border: none;"><img src="docs/realworld_2.gif" alt="Fig2" style="width: 100%;"></td>
+</table>
+
 ## Introduction:
 We propose **a learning-based planner for autonomous navigation in obstacle-dense environments** which intergrats (i) perception and mapping, (ii) front-end path searching, and (iii) back-end optimization of classical methods into a single network. 
 
