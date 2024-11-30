@@ -134,7 +134,7 @@ It may take 2-3 hours to traing with default dataset size and training epoch. If
     <img src="/docs/train_log.png" alt="train_log" width="80%"/>
 </p>
 
-Besides, you can refer to [quadrotor_env.yaml](./flightlib/configs/quadrotor_env.yaml), [vec_env.yaml](./flightlib/config/vec_env.yaml) and [traj_opt.yaml](./flightlib/config/traj_opt.yaml) for some modifications of quadrotor, environment, and trajectory optimization.
+Besides, you can refer to [quadrotor_env.yaml](./flightlib/configs/quadrotor_env.yaml), [vec_env.yaml](./flightlib/configs/vec_env.yaml) and [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for some modifications of quadrotor, environment, and trajectory optimization.
 
 ## Test the Policy
 
@@ -172,7 +172,7 @@ cd ~/YOPO/flightlib/build
 ./flightros_node
 ```
 
-Besides, you can refer to [quadrotor_ros.yaml](./flightlib/configs/quadrotor_ros.yaml) for some modifications.
+Besides, you can refer to [quadrotor_ros.yaml](./flightlib/configs/quadrotor_ros.yaml) for some modifications of the environment.
 
 **2.2** Start the dynamics simulation and controller of UAV
 ```
@@ -181,7 +181,7 @@ source devel/setup.bash
 roslaunch so3_quadrotor_simulator simulator.launch
 ```
 
-**2.3** Start the YOPO inference and the planner (the implementation of yopo_planner_node will be moved to test_yopo_ros.py in the future)
+**2.3** Start the YOPO inference and the planner (The implementation of `yopo_planner_node` will be moved to `test_yopo_ros.py` in the future). You can refer to [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for some modifications such as the flight speed (The given weights are pretrained at 6 m/s and perform smoothly at speeds 0 - 6 m/s).
 
 ```
 cd ~/YOPO/run
