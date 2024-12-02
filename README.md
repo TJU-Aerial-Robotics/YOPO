@@ -46,7 +46,7 @@ git clone git@github.com:TJU-Aerial-Robotics/YOPO.git
 ```
 We will take the directory `~/YOPO` as example in the following.
 
-**1. Flightmare Dependencies**
+**1. Flightmare dependencies**
 
 Make sure that you have already set up the basic dependencies such as ROS, CUDA, and Conda.
 
@@ -59,13 +59,13 @@ sudo apt-get update && apt-get install -y --no-install-recommends \
    libpcl-dev
 ```
 
-**2. Add sourcing of your catkin workspace as FLIGHTMARE_PATH environment variable:**
+**2. Add sourcing of your catkin workspace as FLIGHTMARE_PATH environment variable**
 ```
 # modify "~/YOPO" to your path
 echo "export FLIGHTMARE_PATH=~/YOPO" >> ~/.bashrc
 source ~/.bashrc
 ```
-**3. Unity:** 
+**3. Unity** 
 
 Download the Flightmare Standalone uploaded by [uzh-rpg
 /agile_autonomy](https://zenodo.org/records/5517791/files/standalone.tar), extract it and put in the `flightrender` folder.
@@ -78,7 +78,7 @@ flightrender/
     └── ...
 ```
 
-**4. Create a conda virtual environment.**
+**4. Create a conda virtual environment**
 
 Below are the versions of my python libraries. (You can remove the version numbers if compatibility issues occur in the future.)
 
@@ -91,7 +91,7 @@ pip install opencv-python
 pip install gym==0.21.0 stable-baselines3==1.5.0 
 pip install scipy==1.10.1 scikit-build==0.18.1 ruamel-yaml==0.17.21 numpy==1.22.3 tensorboard==2.8.0 empy catkin_pkg
 ```
-**5. build the flightlib** 
+**5. Build the flightlib** 
 ```
 conda activate yopo
 cd YOPO/flightlib/build
@@ -99,7 +99,7 @@ cmake ..
 make -j8
 pip install .
 ```
-**6. Some issues may arise when we test on different devices.**
+**6. Some issues may arise when we test on different devices**
 
 6.1. No module named 'flightpolicy' 
 
@@ -115,32 +115,35 @@ pip install -e .
 ```
 
 ## Train the Policy
-**1. Data Collection:** For efficiency, we proactively collect dataset (images and states) by randomly initializing the drone's state (position and orientation). We randomly sample multiple velocities and accelerations for each image during the training process. The distribution of random sampled velocity is as `/docs/distribution_of_sampled_velocity.png`. It may take nearly 1 hour for collection with default dataset size but you only need to collect once. The data will be saved at `run/yopo_sim`.
+**1. Data collection** 
+
+For efficiency, we proactively collect dataset (images and states) by randomly initializing the drone's state (position and orientation). It may take nearly 1 hour for collection with default dataset size but you only need to collect once. The data will be saved at `run/yopo_sim`.
 ```
 cd ~/YOPO/run
 conda activate yopo
 python data_collection_simulation.py
 ```
+Besides, you can refer to [vec_env.yaml](./flightlib/configs/vec_env.yaml) and [quadrotor_env.yaml](./flightlib/configs/quadrotor_env.yaml) for modifications of the environment and quadrotor. 
 
-**2. Training:** 
+**2. Training** 
 ```
 cd ~/YOPO/run
 conda activate yopo
 python run_yopo.py --train=1
 ```
-It may take 2-3 hours to traing with default dataset size and training epoch. If everything goes well, the training log is as follows:
+It may take 2-3 hours for training with default dataset size and training epoch. If everything goes well, the training log is as follows:
 
 <p align="center">
     <img src="/docs/train_log.png" alt="train_log" width="80%"/>
 </p>
 
-Besides, you can refer to [quadrotor_env.yaml](./flightlib/configs/quadrotor_env.yaml), [vec_env.yaml](./flightlib/configs/vec_env.yaml) and [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for some modifications of quadrotor, environment, and trajectory optimization.
+Besides, you can refer to [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for some modifications of trajectory optimization (e.g. the speed and penalties).
 
 ## Test the Policy
 
 You can test the policy using pre-trained weights we provide at `run/saved/YOPO_1/Policy/epoch0_iter0.pth`. (For example, to use the weights of `YOPO_1/Policy/epoch2_iter3.pth`, you should use `--trial=1 --epoch=2 --iter=3`)
 
-**1. Test without dynamics model and controller (simple but not recommended).**
+**1. Test without dynamics model and controller (simple but not recommended)**
 
 
 ```
@@ -154,9 +157,9 @@ It will take a while for unity setup, and then you will see:
     <img src="/docs/simple_demo.gif" alt="demo" />
 </p>
 
-**2. Test with dynamics model and controller (recommended).**
+**2. Test with dynamics model and controller (recommended)**
 
-**Prapare:** We did not use the built-in dynamics of Flightmare; instead, we used a ROS-based simulator and controller from [Fast Planner](https://github.com/HKUST-Aerial-Robotics/Fast-Planner). For your convenience, we have extracted only the relevant sections from the project, which you can refer to [UAV_Simulator](https://github.com/TJU-Aerial-Robotics/UAV_Simulator) for installation.
+**Prapare:** We do not use the built-in dynamics of Flightmare; instead, we used a ROS-based simulator and controller from [Fast Planner](https://github.com/HKUST-Aerial-Robotics/Fast-Planner). For your convenience, we have extracted only the relevant sections from the project, which you can refer to [UAV_Simulator](https://github.com/TJU-Aerial-Robotics/UAV_Simulator) for installation.
 
 Besides, we recommend using tmux & tmuxinator for terminal management.
 
@@ -181,7 +184,7 @@ source devel/setup.bash
 roslaunch so3_quadrotor_simulator simulator.launch
 ```
 
-**2.3** Start the YOPO inference and the planner (The implementation of `yopo_planner_node` will be moved to `test_yopo_ros.py` in the future). You can refer to [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for some modifications such as the flight speed (The given weights are pretrained at 6 m/s and perform smoothly at speeds 0 - 6 m/s).
+**2.3** Start the YOPO inference and the Planner (The implementation of `yopo_planner_node` will be moved to `test_yopo_ros.py` in the future). You can refer to [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for modification of the flight speed (The given weights are pretrained at 6 m/s and perform smoothly at speeds between 0 - 6 m/s).
 
 ```
 cd ~/YOPO/run
@@ -200,7 +203,7 @@ Then you can click the `2D Nav Goal` on RVIZ as the goal at will, just like the 
 cd ~/YOPO/
 rviz -d yopo.rviz
 ```
-
+(optional) Wait for the map to be saved by `flightros_node` and then:
 ```
 cd ~/YOPO/flightlib/build
 ./map_visual_node
@@ -214,7 +217,7 @@ cd ~/YOPO/flightlib/build
 ## TensorRT Deployment
 We highly recommend using TensorRT for acceleration when flying in real world. It only takes 1ms for inference on NVIDIA Orin NX.
 
-**1. Prepera:**
+**1. Prepera**
 ```
 conda activate yopo
 pip install -U nvidia-tensorrt --index-url https://pypi.ngc.nvidia.com
@@ -229,7 +232,7 @@ cd ~/YOPO/
 conda activate yopo
 python yopo_trt_transfer.py --trial=1 --epoch=0 --iter=0
 ```
-**3. TensorRT Inference**
+**3. TensorRT inference**
 ```
 cd ~/YOPO/
 conda activate yopo
