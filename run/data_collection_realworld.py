@@ -1,7 +1,8 @@
 """
-# 收集实飞数据，记录位置、姿态、图像，用于离线fine-tuning (保存至save_dir)
-# 注意： 由于里程计漂移，可能utils/pointcloud_clip需要对地图进行微调，需对无人机位置和yaw, pitch, roll做相同的变换
-# 注意保证地图和里程计处于同一坐标系，同时录包+保存地图
+算法具有有一定的Sim2Real的泛化能力, 如果有条件可用雷达+深度相机收集数据, 合并至仿真数据集中一同训练, 以进一步保证实飞的可靠性
+# (1) 运行雷达里程计以记录无人机状态和地图真值. 注意保证地图和里程计处于同一坐标系，请在一次运行中同时记录图像与里程计的rosbag + 保存地图
+# (可选) 由于里程计漂移，可用utils/pointcloud_clip对地图进行微调和降噪，本文件需对无人机位置translation_no和姿态R_no(yaw, pitch, roll)做相同的变换
+# (2) 播包rosbag, 运行本文件: 记录位置、姿态、图像，保存至save_dir
 """
 import cv2
 import numpy as np
@@ -12,9 +13,21 @@ from sensor_msgs.msg import Image
 from nav_msgs.msg import Odometry
 from scipy.spatial.transform import Rotation
 
-depth_img = np.zeros([270, 480])
-pos = np.array([0, 0, 0])
-quat = np.array([1, 0, 0, 0])
+# IMPORTANT PARAM
+save_dir = os.environ["FLIGHTMARE_PATH"] + "/run/yopo_realworld"
+label_path = save_dir + "/label.npz"
+if not os.path.exists(save_dir):
+    os.mkdir(save_dir)
+# Due to odometry drift, the map is adjusted, and the drone's position is also adjusted accordingly.
+R_no = Rotation.from_euler('ZYX', [0.0, 0.0, 0.0], degrees=True)  # yaw, pitch, roll
+translation_no = np.array([0.0, 0.0, 0.0])
+img_height = 270
+img_width = 480
+
+# VARIABLES
+depth_img = None
+pos = None
+quat = None
 positions = []
 quaternions = []
 frame_id = 0
@@ -22,13 +35,6 @@ new_depth = False
 new_odom = False
 first_frame = True
 last_time = time.time()
-save_dir = os.environ["FLIGHTMARE_PATH"] + "/run/depth_realworld"
-label_path = save_dir + "/label.npz"
-if not os.path.exists(save_dir):
-    os.mkdir(save_dir)
-# Due to odometry drift, the map is adjusted, and the drone's position is also adjusted accordingly.
-R_no = Rotation.from_euler('ZYX', [15, 3, 0.0], degrees=True)  # yaw, pitch, roll
-translation_no = np.array([0, 0, 2])
 
 
 def callback_odometry(data):
@@ -49,17 +55,17 @@ def callback_odometry(data):
 
 
 def callback_depth(data):
-    global depth_img, new_depth
+    global depth_img, new_depth, img_height, img_width
     max_dis = 20.0
     min_dis = 0.03
-    height = 270
-    width = 480
+    height = img_height
+    width = img_width
     scale = 0.001
     bridge = CvBridge()
     try:
         depth_ = bridge.imgmsg_to_cv2(data, "32FC1")
     except:
-        print("CV_bridge ERROR: Your ros and python path has something wrong!")
+        print("CV_bridge ERROR: Possible solutions may be found at https://github.com/TJU-Aerial-Robotics/YOPO/issues/2")
 
     if depth_.shape[0] != height or depth_.shape[1] != width:
         depth_ = cv2.resize(depth_, (width, height), interpolation=cv2.INTER_NEAREST)
@@ -106,14 +112,10 @@ def save_data(_timer):
     frame_id = frame_id + 1
 
 
-def main():
+if __name__ == "__main__":
     rospy.init_node('data_collect', anonymous=False)
     odom_ref_sub = rospy.Subscriber("/odometry/imu", Odometry, callback_odometry, queue_size=1)
     depth_sub = rospy.Subscriber("/camera/depth/image_rect_raw", Image, callback_depth, queue_size=1)
     timer = rospy.Timer(rospy.Duration(0.033), save_data)
     print("Data Collection Node Ready!")
     rospy.spin()
-
-
-if __name__ == "__main__":
-    main()

@@ -7,17 +7,17 @@
 #include <pcl/search/kdtree.h>
 #include <ros/ros.h>
 #include <time.h>
-
 #include <Eigen/Core>
-
 #include "flightlib/controller/ctrl_ref.h"
 
 namespace traj_eval {
 
+// Evaluate the performance of the trajectory from the origin [start_record, y, z] to destination [finish_record, y, z]
 float start_record  = -39;
 float finish_record = 18;
+float ctrl_dt = 0.02;
 // eval
-std::ofstream log_, log_x, ctrl_log;
+std::ofstream dist_log, ctrl_log;
 Eigen::Vector3f pose_last;
 Eigen::Vector3f acc_last;
 ros::Time start, end;
@@ -67,7 +67,7 @@ void odom_cb(const nav_msgs::Odometry::Ptr odom_msg) {
 	if (!odom_init && odom_msg->pose.pose.position.x > start_record) {
 		odom_init = true;
 		pose_last = Eigen::Vector3f(odom_msg->pose.pose.position.x, odom_msg->pose.pose.position.y, odom_msg->pose.pose.position.z);
-		start     = ros::Time::now();
+		start     = odom_msg->header.stamp;
 		std::cout << "start!" << std::endl;
 		return;
 	}
@@ -77,18 +77,19 @@ void odom_cb(const nav_msgs::Odometry::Ptr odom_msg) {
 	Eigen::Vector3f pose_cur(odom_msg->pose.pose.position.x, odom_msg->pose.pose.position.y, odom_msg->pose.pose.position.z);
 	length_ += (pose_cur - pose_last).norm();
 	dist_ += distance_at(pose_cur);
-	log_ << distance_at(pose_cur) << std::endl;
-	log_x << pose_cur(0) << std::endl;
+
+	dist_log << (odom_msg->header.stamp - start).toSec() << ',';
+	dist_log << pose_cur(0) << ',';
+	dist_log << distance_at(pose_cur) << std::endl;
 
 	pose_last = pose_cur;
 	num_++;
 	if (odom_msg->pose.pose.position.x > finish_record) {
 		odom_finish = true;
-		end         = ros::Time::now();
-		std::cout << "finish! \n time:" << (end - start).toSec() << " s,\nlength:" << length_ << " m,\ndist:" << dist_ / num_
+		end         = odom_msg->header.stamp;
+		std::cout << "finish! \ntime:" << (end - start).toSec() << " s,\nlength:" << length_ << " m,\ndist:" << dist_ / num_
 		          << " m,\nctrl cost:" << ctrl_cost_ << " m2/s5" << std::endl;
-		log_.close();
-		log_x.close();
+		dist_log.close();
 		ctrl_log.close();
 	}
 }
@@ -103,9 +104,9 @@ void ctrl_cb(const quad_pos_ctrl::ctrl_ref& ctrl_msg) {
 	}
 
 	Eigen::Vector3f cur_acc(ctrl_msg.acc_ref[0], -ctrl_msg.acc_ref[1], -ctrl_msg.acc_ref[2]);
-	Eigen::Vector3f d_acc = (acc_last - cur_acc) / 0.02;
+	Eigen::Vector3f d_acc = (acc_last - cur_acc) / ctrl_dt;
 	float acc_norm2       = d_acc.dot(d_acc);
-	ctrl_cost_ += 0.02 * acc_norm2;
+	ctrl_cost_ += ctrl_dt * acc_norm2;
 	acc_last = cur_acc;
 
 	ctrl_log << ctrl_msg.pos_ref[0] << ',';
@@ -126,16 +127,13 @@ void ctrl_cb(const quad_pos_ctrl::ctrl_ref& ctrl_msg) {
 using namespace traj_eval;
 int main(int argc, char** argv) {
 	map_input();
-	// Move to the same log file.
-	std::string log_file = getenv("FLIGHTMARE_PATH") + std::string("/run/utils/dist.csv");
+
+	std::string log_file = getenv("FLIGHTMARE_PATH") + std::string("/run/utils/dist_log.csv");
 	std::cout << "log path:" << log_file << std::endl;
-	log_.open(log_file.c_str(), std::ios::out);
+	dist_log.open(log_file.c_str(), std::ios::out);
 
-	std::string log_file2 = getenv("FLIGHTMARE_PATH") + std::string("/run/utils/dist_x.csv");
-	log_x.open(log_file2.c_str(), std::ios::out);
-
-	std::string log_file3 = getenv("FLIGHTMARE_PATH") + std::string("/run/utils/ctrl_log.csv");
-	ctrl_log.open(log_file3.c_str(), std::ios::out);
+	std::string log_file2 = getenv("FLIGHTMARE_PATH") + std::string("/run/utils/ctrl_log.csv");
+	ctrl_log.open(log_file2.c_str(), std::ios::out);
 
 	ros::init(argc, argv, "traj_eval");
 	ros::NodeHandle nh;
