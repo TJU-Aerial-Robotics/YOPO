@@ -202,8 +202,8 @@ bool FlightPilot::loadParams(const YAML::Node& cfg) {
 	}
 	pointcloud_resolution_ = cfg["unity"]["pointcloud_resolution"].as<Scalar>();
 	ply_path_              = getenv("FLIGHTMARE_PATH") + cfg["ply_path"].as<std::string>();
-	if (!std::filesystem::exists(ply_path_)) {
-		std::filesystem::create_directories(ply_path_);
+	if (!boost::filesystem::exists(ply_path_)) {
+		boost::filesystem::create_directories(ply_path_);
 		std::cout << "Directory created: " << ply_path_ << std::endl;
 	}
 	return true;

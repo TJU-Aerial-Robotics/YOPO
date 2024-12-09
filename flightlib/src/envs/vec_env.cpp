@@ -318,15 +318,15 @@ bool VecEnv<EnvBase>::spawnTreesAndSavePointcloud(int ply_id_in, float spacing) 
 template<typename EnvBase>
 void VecEnv<EnvBase>::generateMaps() {
 	std::vector<std::string> ply_files;
-	for (const auto& entry : std::filesystem::directory_iterator(ply_path_)) {
-		if (entry.is_regular_file() && entry.path().extension() == ".ply") {
-			ply_files.push_back(entry.path().string());
-		}
-	}
+	for (const auto& entry : boost::filesystem::directory_iterator(ply_path_)) {
+        if (boost::filesystem::is_regular_file(entry) && entry.path().extension() == ".ply") {
+            ply_files.push_back(entry.path().string());
+        }
+    }
 
 	// Sort according to the number of the filename.
 	std::sort(ply_files.begin(), ply_files.end(), [this](const std::string& a, const std::string& b) {
-		return extract_number(std::filesystem::path(a).filename().string()) < extract_number(std::filesystem::path(b).filename().string());
+		return extract_number(boost::filesystem::path(a).filename().string()) < extract_number(boost::filesystem::path(b).filename().string());
 	});
 
 	for (auto ply_file : ply_files) {
