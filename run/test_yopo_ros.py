@@ -133,8 +133,7 @@ class YopoNet:
         return obs_norm
 
     def callback_depth(self, data):
-        max_dis = 20.0
-        min_dis = 0.03
+        min_dis, max_dis = 0.03, 20.0
         scale = {'435': 0.001, 'flightmare': 1.0}.get(self.env, 1.0)
 
         try:
