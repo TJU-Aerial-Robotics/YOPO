@@ -32,10 +32,12 @@ FlightPilot::FlightPilot(const ros::NodeHandle& nh, const ros::NodeHandle& pnh)
 	timestamp       = ros::Time::now();
 
 	// connect unity and setup unity
-	setUnity(unity_render_);
+	setUnity();
 	connectUnity();
-	if (!unity_ready_)
+	if (!unity_ready_){
 		ROS_ERROR("[FlightRos] Connection Faild! Start the Flightmare Unity First!");
+		exit(1);
+	}
 	spawnTreesAndSavePointCloud();
 
 	timer_main_loop_ = nh_.createTimer(ros::Rate(main_loop_freq_), &FlightPilot::mainLoopCallback, this);
@@ -137,8 +139,7 @@ void FlightPilot::mainLoopCallback(const ros::TimerEvent& event) {
 	}
 }
 
-bool FlightPilot::setUnity(const bool render) {
-	unity_render_ = render;
+bool FlightPilot::setUnity() {
 	if (unity_render_ && unity_bridge_ptr_ == nullptr) {
 		// create unity bridge
 		unity_bridge_ptr_ = UnityBridge::getInstance();
@@ -171,9 +172,9 @@ bool FlightPilot::connectUnity() {
 	return unity_ready_;
 }
 
-bool FlightPilot::disconnectUnity() {
+void FlightPilot::disconnectUnity() {
 	if (unity_render_ && unity_bridge_ptr_ != nullptr)
-		;
+		return;
 	unity_bridge_ptr_->disconnectUnity();
 	unity_ready_ = false;
 }
@@ -243,8 +244,7 @@ bool FlightPilot::configCamera(const YAML::Node& cfg) {
 	std::vector<Scalar> r_BC_vec = cfg["rgb_camera_left"]["r_BC"].as<std::vector<Scalar>>();
 	Vector<3> t_BC(t_BC_vec.data());
 	Matrix<3, 3> r_BC = (AngleAxis(r_BC_vec[0] * M_PI / 180.0, Vector<3>::UnitX()) * AngleAxis(r_BC_vec[1] * M_PI / 180.0, Vector<3>::UnitY()) *
-	                     AngleAxis(r_BC_vec[2] * M_PI / 180.0, Vector<3>::UnitZ()))
-	                        .toRotationMatrix();  // the rotation order has been verified
+	                     AngleAxis(r_BC_vec[2] * M_PI / 180.0, Vector<3>::UnitZ())).toRotationMatrix();  // the rotation order has been verified
 	// Convert the horizontal FOV (usually used) to vertical FOV (flightmare).
 	Scalar rgb_fov_deg_    = cfg["rgb_camera_left"]["fov"].as<Scalar>();
 	double hor_fov_radians = (M_PI * (rgb_fov_deg_ / 180.0));
@@ -272,8 +272,7 @@ bool FlightPilot::configCamera(const YAML::Node& cfg) {
 
 		Vector<3> t_BC_r(t_BC_vec_r.data());
 		Matrix<3, 3> r_BC_r = (AngleAxis(r_BC_vec[0] * M_PI / 180.0, Vector<3>::UnitX()) * AngleAxis(r_BC_vec[1] * M_PI / 180.0, Vector<3>::UnitY()) *
-		                       AngleAxis(r_BC_vec[2] * M_PI / 180.0, Vector<3>::UnitZ()))
-		                          .toRotationMatrix();
+		                       AngleAxis(r_BC_vec[2] * M_PI / 180.0, Vector<3>::UnitZ())).toRotationMatrix();
 
 		rgb_camera_right->setFOV(flightmare_fov);
 		rgb_camera_right->setWidth(cfg["rgb_camera_left"]["width"].as<int>());

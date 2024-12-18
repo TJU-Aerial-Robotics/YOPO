@@ -95,18 +95,21 @@ void yopo_cb(const std_msgs::Float32MultiArray::ConstPtr msg) {
 	// std::cout<<"yopo开始预测到当前时间: "<<delta_t<<std::endl;
 	sample_t = 0.0;  // = delta_t
 
-	pcl::PointCloud<pcl::PointXYZI>::Ptr best_traj_cld(new pcl::PointCloud<pcl::PointXYZI>);
-	traj_to_pcl(traj_opt_bridge, best_traj_cld);
-	pcl_conversions::toPCL(ros::Time::now(), best_traj_cld->header.stamp);  // for test
-	best_traj_cld->header.frame_id = "world";
-	best_traj_visual_pub.publish(best_traj_cld);
+	if (best_traj_visual_pub.getNumSubscribers() > 0){
+		pcl::PointCloud<pcl::PointXYZI>::Ptr best_traj_cld(new pcl::PointCloud<pcl::PointXYZI>);
+		traj_to_pcl(traj_opt_bridge, best_traj_cld);
+		pcl_conversions::toPCL(ros::Time::now(), best_traj_cld->header.stamp);
+		best_traj_cld->header.frame_id = "world";
+		best_traj_visual_pub.publish(best_traj_cld);
+	}
 	yopo_init = true;
 }
 
 void trajs_vis_cb(const std_msgs::Float32MultiArray::ConstPtr msg) {
 	if (!odom_init)
 		return;
-
+	if ((trajs_visual_pub.getNumSubscribers() == 0) && (lattice_trajs_visual_pub.getNumSubscribers() == 0))
+		return;
 	// ---------------- visualization of all trajs --------------------
 	std::vector<std::vector<double>> endstates_b;
 	endstates_b.resize(msg->layout.dim[0].size);

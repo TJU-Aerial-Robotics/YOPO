@@ -36,9 +36,9 @@ class FlightPilot {
 	void poseCallback(const nav_msgs::Odometry::ConstPtr& msg);
 
 	// unity
-	bool setUnity(const bool render);
+	bool setUnity(void);
 	bool connectUnity(void);
-	bool disconnectUnity();
+	void disconnectUnity(void);
 	bool loadParams(const YAML::Node& cfg);
 	bool configCamera(const YAML::Node& cfg);
 	void computeDepthImage(const cv::Mat& left_frame, const cv::Mat& right_frame, cv::Mat* const depth);
