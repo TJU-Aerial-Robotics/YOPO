@@ -1,10 +1,11 @@
 """
     将yopo模型转换为Tensorrt
     prepare:
-        1 pip install -U nvidia-tensorrt --index-url https://pypi.ngc.nvidia.com
-        2 git clone https://github.com/NVIDIA-AI-IOT/torch2trt
-          cd torch2trt
-          python setup.py install
+        0. make sure you install already install TensorRT
+        1. pip install -U nvidia-tensorrt --index-url https://pypi.ngc.nvidia.com
+        2. git clone https://github.com/NVIDIA-AI-IOT/torch2trt
+           cd torch2trt
+           python setup.py install
 """
 
 import argparse
@@ -17,28 +18,6 @@ from flightgym import QuadrotorEnv_v1
 from ruamel.yaml import YAML, RoundTripDumper, dump
 from flightpolicy.envs import vec_env_wrapper as wrapper
 from flightpolicy.yopo.yopo_algorithm import YopoAlgorithm
-
-
-def prapare_input_observation(obs, lattice_space, lattice_primitive):
-    obs_return = np.ones(
-        (obs.shape[0], lattice_space.vertical_num, lattice_space.horizon_num, obs.shape[1]),
-        dtype=np.float32)
-    id = 0
-    v_b = obs[:, 0:3]
-    a_b = obs[:, 3:6]
-    g_b = obs[:, 6:9]
-    for i in range(lattice_space.vertical_num - 1, -1, -1):
-        for j in range(lattice_space.horizon_num - 1, -1, -1):
-            Rbp = lattice_primitive.getRotation(id)
-            v_p = np.dot(Rbp.T, v_b.T).T
-            a_p = np.dot(Rbp.T, a_b.T).T
-            g_p = np.dot(Rbp.T, g_b.T).T
-            obs_return[:, i, j, 0:3] = v_p
-            obs_return[:, i, j, 3:6] = a_p
-            obs_return[:, i, j, 6:9] = g_p
-            id = id + 1
-    obs_return = np.transpose(obs_return, [0, 3, 1, 2])
-    return obs_return
 
 
 def parser():
@@ -84,10 +63,9 @@ if __name__ == "__main__":
     # The inputs should be consistent with training
     print("TensorRT Transfer...")
     depth = np.zeros(shape=[1, 1, 96, 160], dtype=np.float32)
-    obs = np.zeros(shape=[1, 9], dtype=np.float32)
-    obs_input = prapare_input_observation(obs, lattice_space, lattice_primitive)
+    obs = np.zeros(shape=[1, 9, lattice_space.vertical_num, lattice_space.horizon_num], dtype=np.float32)
     depth_in = torch.from_numpy(depth).cuda()
-    obs_in = torch.from_numpy(obs_input).cuda()
+    obs_in = torch.from_numpy(obs).cuda()
     model_trt = torch2trt(model.policy, [depth_in, obs_in], fp16_mode=args.fp16_mode)
     torch.save(model_trt.state_dict(), args.filename)
     print("TensorRT Transfer Finish!")

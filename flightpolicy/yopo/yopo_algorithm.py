@@ -157,8 +157,7 @@ class YopoAlgorithm:
                 if log_interval is not None and n_updates % log_interval[0] == 0:
                     self.logger.record("time/epoch", epoch_, exclude="tensorboard")
                     self.logger.record("time/steps", n_updates, exclude="tensorboard")
-                    self.logger.record("time/batch_fps", log_interval[0] / (time.time() - start_time),
-                                       exclude="tensorboard")
+                    self.logger.record("time/batch_fps", log_interval[0] / (time.time() - start_time), exclude="tensorboard")
                     self.logger.record("train/trajectory_cost", np.mean(cost_losses))
                     self.logger.record("train/score_loss", np.mean(score_losses))
                     self.logger.dump(step=n_updates)
@@ -260,6 +259,7 @@ class YopoAlgorithm:
                 costs.append(rew)
                 ep_len += 1
             print("round ", n_roll, ", total steps:", len(costs), ", avg cost:", sum(costs) / len(costs))
+        self.env.disconnectUnity()
 
     def train(self, gradient_steps: int, batch_size: int) -> None:
         """
@@ -364,25 +364,17 @@ class YopoAlgorithm:
             convert the observation from body frame to primitive frame,
             and then concatenate it with the depth features (to ensure the translational invariance)
         """
-        obs_return = np.ones(
-            (obs.shape[0], self.lattice_space.vertical_num, self.lattice_space.horizon_num, obs.shape[1]),
-            dtype=np.float32)
+        obs_return = np.ones((obs.shape[0], obs.shape[1], self.lattice_space.vertical_num, self.lattice_space.horizon_num), dtype=np.float32)
         id = 0
-        v_b = obs[:, 0:3]
-        a_b = obs[:, 3:6]
-        g_b = obs[:, 6:9]
+        v_b, a_b, g_b = obs[:, 0:3], obs[:, 3:6], obs[:, 6:9]
         for i in range(self.lattice_space.vertical_num - 1, -1, -1):
             for j in range(self.lattice_space.horizon_num - 1, -1, -1):
                 Rbp = self.lattice_primitive.getRotation(id)
-                v_p = np.dot(Rbp.T, v_b.T).T
-                a_p = np.dot(Rbp.T, a_b.T).T
-                g_p = np.dot(Rbp.T, g_b.T).T
-                obs_return[:, i, j, 0:3] = v_p
-                obs_return[:, i, j, 3:6] = a_p
-                obs_return[:, i, j, 6:9] = g_p
-                # obs_return[:, i, j, 0:6] = self.normalize_obs(obs_return[:, i, j, 0:6])
+                obs_return[:, 0:3, i, j] = np.dot(v_b, Rbp)  # v_p
+                obs_return[:, 3:6, i, j] = np.dot(a_b, Rbp)  # a_p
+                obs_return[:, 6:9, i, j] = np.dot(g_b, Rbp)  # g_p
+                # obs_return[:, 0:6, i, j] = self.normalize_obs(obs_return[:, 0:6, i, j])
                 id = id + 1
-        obs_return = np.transpose(obs_return, [0, 3, 1, 2])
         return th.from_numpy(obs_return)
 
     def unnormalize_obs(self, vel_acc_norm):
@@ -421,7 +413,7 @@ class YopoAlgorithm:
         self._last_obs = self.env.reset()
         self._last_depth = self.env.getDepthImage()
         self._last_goal = np.zeros([self.env.num_envs, 3], dtype=np.float32)
-        for i in range(0, self.env.num_envs):
+        for i in range(self.env.num_envs):
             self._last_goal[i] = self.get_random_goal(self._last_obs[i])
         self._map_id = np.zeros((self.env.num_envs, 1), dtype=np.float32)
 
@@ -503,7 +495,7 @@ class YopoAlgorithm:
         self.env.setMapID(-np.ones((self.env.num_envs, 1)))
         self._last_obs = self.env.reset()
         self._last_depth = self.env.getDepthImage()
-        for i in range(0, self.env.num_envs):
+        for i in range(self.env.num_envs):
             self._last_goal[i] = self.get_random_goal(self._last_obs[i])
 
     def _convert_train_freq(self) -> None:
