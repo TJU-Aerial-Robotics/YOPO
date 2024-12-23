@@ -1,39 +1,40 @@
-vel_max: 6.0
+# Maximum Speed: applicable when test speed not much higher than training
+vel_max: 6.0  # the given weights perform smoothly at speeds between 0 - 6 m/s
 # segment_time = 2 * radio / vel_max
 
-# IMPORTANT PARAM: weight of penalties (6m/s)
-ws: 0.00004
-wc: 0.001
-wl: 0.00
-wg: 0.0002
+# IMPORTANT TRAINING PARAM: weight of penalties (6m/s)
+ws: 0.00004   # smoothness cost (reduce ws when increase vel_max in training)
+wc: 0.001     # collision cost
+wg: 0.0002    # goal cost
+wl: 0.00      # trajectory length cost
 
 #ws: 0.00004
 #wc: 0.001
 #wl: 0.02
 #wg: 0.0001
 
-# trajectory and primitive parma
-horizon_num: 5
-vertical_num: 3
-horizon_camera_fov: 90.0
-vertical_camera_fov: 60.0
-horizon_anchor_fov: 30
-vertical_anchor_fov: 30
-goal_length: 10
-radio_range: 4.0    # planning horizon: 2 * radio_range
-vel_fov: 90.0       # not use currently
-radio_num: 1        # 1 just ok
-vel_num: 1          # 1 just ok
-vel_prefile: 0.0    # 0 just ok
+# trajectory and primitive parameters
+horizon_num: 5            # grids num in horizon
+vertical_num: 3           # grids num in vertical
+horizon_camera_fov: 90.0  # horizon camera fov
+vertical_camera_fov: 60.0 # vertical camera fov
+horizon_anchor_fov: 30    # horizon fov of each gird
+vertical_anchor_fov: 30   # vertical fov of each grid
+goal_length: 10           # used for standardization of goal penalties (should >= 2 * radio_range)
+radio_range: 4.0          # planning horizon: 2 * radio_range
+vel_fov: 90.0             # not use currently
+radio_num: 1              # 1 just ok (deprecated)
+vel_num: 1                # 1 just ok (deprecated)
+vel_prefile: 0.0          # 0 just ok (deprecated)
 
-# For data efficiency, we randomly sample multiple vel and acc for each depth image with the following the distribution.
+# For data efficiency, we randomly sample multiple vel and acc for each depth image with the following the distribution
 # values at normalized speed (actual speed can be denormalized by multiplying v_multiple)
 # 单位数据倍数： v_multiple = 0.5 * v_max = radio / time
 # v数据的均值： v_mean = v_multiple * v_mean_unit
 # v数据的方差： v_var = v_multiple^2 * v_var_unit
 # a数据的均值： v_mean = v_multiple^2 * a_mean_unit
 # a数据的方差： v_var = v_multiple^4 * a_var_unit
-vx_mean_unit: 1.5
+vx_mean_unit: 1.5  # vel_x: skewed distribution
 vy_mean_unit: 0.0
 vz_mean_unit: 0.0
 vx_var_unit: 0.15
@@ -46,19 +47,19 @@ ax_var_unit: 0.0278
 ay_var_unit: 0.05
 az_var_unit: 0.0278
 
-# penalties
+# collision penalties
 alpha: 10.0
 d0: 1.2
 r: 0.6
 
+# vel penalties (deprecated)
 alphav: 2.0
 v0: 3.5
 rv: 1.5
-
+# acc penalties (deprecated)
 alphaa: 2.0
 a0: 3.5
 ra: 1.5
-
-# deprecated weight
+# vel and acc weight (deprecated)
 wv: 0.0
 wa: 0.0

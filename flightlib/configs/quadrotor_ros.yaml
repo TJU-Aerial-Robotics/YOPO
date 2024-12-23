@@ -1,14 +1,14 @@
 main_loop_freq: 30
 unity_render: yes
-scene_id: 4               # 0 wasteland, 1 japanese street, 4 emptyforest in standalone (SR)
-odom_topic: /juliett/ground_truth/odom
+scene_id: 4                             # 0 wasteland, 1 japanese street, 4 empty forest in standalone (SR)
+odom_topic: /juliett/ground_truth/odom  # Topic of UAV odometry for render
 quad_size: 0.1
-ply_path: "/flightrender/RPG_Flightmare/pointcloud_data/"
+ply_path: "/flightrender/RPG_Flightmare/pointcloud_data/"  # temporary path of saving point could (for visualization)
 
 rgb_camera_left:
   on: yes 
-  t_BC: [0.0, 0.0, 0.1]   # translational vector of the camera with repect to the body frame
-  r_BC: [0.0, -5.0, -90]  # rotational angle (roll, pitch, yaw) of the camera in degree.
+  t_BC: [0.0, 0.0, 0.1]   # translational vector of the camera with respect to the body frame
+  r_BC: [0.0, -5.0, -90]  # rotational angle (roll, pitch, yaw) of the camera in degree
   width: 160
   height: 90
   fov: 90.0               # Horizontal FOV
@@ -16,7 +16,7 @@ rgb_camera_left:
   enable_segmentation: no
   enable_opticalflow: no
 
-# enable stereo depth when rgb_camera_right on (If use, please use larger resolution (e.g., 640x360)).
+# enable stereo depth when rgb_camera_right on (If used, please use larger resolution (e.g., 640x360))
 rgb_camera_right:
   on: no
   t_BC: [0.0, -0.2, 0.1]  # translational vector of the camera with repect to the body frame
@@ -25,7 +25,7 @@ rgb_camera_right:
 unity:
   spawn_trees: true
   save_pointcloud: true               # set to 'false' to save startup time, if visualization is not needed.
-  avg_tree_spacing: 4.0
+  avg_tree_spacing: 4.0               # average spacing between trees
   bounding_box: [80.0, 80.0, 11.0]    # spawn objects within this bounding box
   bounding_box_origin: [-10, 20, 2.5]
   pointcloud_resolution: 0.2

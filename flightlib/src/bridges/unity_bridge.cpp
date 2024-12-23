@@ -279,7 +279,7 @@ bool UnityBridge::handleOutput(FrameID& frameID) {
 			// 2、附加开启的图-------------------------------------------
 			for (size_t layer_idx = 0; layer_idx < cam.post_processing.size(); layer_idx++) {
 				if (cam.post_processing[layer_idx] == RGBCameraTypes::Depth) {
-					// depth
+					// depth (float32存在4个uint8)
 					uint32_t image_len = cam.width * cam.height * 4;
 					// Get raw image bytes from ZMQ message.
 					// WARNING: This is a zero-copy operation that also casts the input to an array of unit8_t. when the message is deleted, this
@@ -291,9 +291,9 @@ bool UnityBridge::handleOutput(FrameID& frameID) {
 					cv::Mat new_image = cv::Mat(cam.height, cam.width, CV_32FC1);
 					memcpy(new_image.data, image_data, image_len);
 					// Flip image since OpenCV origin is upper left, but Unity's is lower left.
-					new_image = new_image * (1.f);
+					new_image = new_image * (1.f);			// 默认单位km
 					cv::flip(new_image, new_image, 0);
-
+					new_image = cv::max(new_image, 0.0f);	// 有时候返回的深度值有负数
 					unity_quadrotors_[idx]->getCameras()[cam.output_index]->feedImageQueue(CameraLayer::DepthMap, new_image);
 				}
 			}

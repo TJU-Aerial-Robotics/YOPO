@@ -100,9 +100,11 @@ if __name__ == '__main__':
 
     start = time.time()
     for epoch in range(1):
-        last = time.time()
         for i, (depth, pos, quat, obs, id) in enumerate(data_loader):
-            pass
+            max_val = depth.max()
+            min_val = depth.min()
+            if max_val > 1 or min_val < 0:
+                print(f"Image {i} has values out of range: max={max_val}, min={min_val}")
     end = time.time()
 
     print("总耗时：", end - start)

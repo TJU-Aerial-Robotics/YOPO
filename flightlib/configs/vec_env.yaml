@@ -1,14 +1,14 @@
 env:
   seed: 1
-  scene_id: 4   # 0 wasteland, 1 japanese street, 4 emptyforest in SR standalone
-  num_envs: 16  # Important: same to batch size!
+  scene_id: 4     # 0 wasteland, 1 japanese street, 4 emptyforest in SR standalone
+  num_envs: 16    # Important: same to batch size!
   num_threads: 16
-  dataset_path: "/run/yopo_sim/"
-  ply_path: "/run/yopo_sim/"
+  dataset_path: "/run/yopo_sim/"  # path of training dataset
+  ply_path: "/run/yopo_sim/"      # path of the point could of training data
 
 unity:
   spawn_trees: true
-  avg_tree_spacing: 4
+  avg_tree_spacing: 4                 # average spacing between trees
   # larger than the position to generate the drone to ensure the completeness of the point cloud in edge.
   bounding_box: [80.0, 80.0, 11]      # spawn objects within this bounding box
   bounding_box_origin: [-10, 20, 2.5]
