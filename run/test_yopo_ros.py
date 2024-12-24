@@ -1,3 +1,15 @@
+"""
+    YOPO Network Inference NODE:
+    Subscribe odometry and depth messages, and perform network inference
+    Use:
+        $ cd ~/YOPO/run
+        $ conda activate yopo
+        $ python test_yopo_ros.py --trial=1 --epoch=0 --iter=0
+
+        $ cd ~/YOPO/flightlib/build
+        $ ./yopo_planner_node
+"""
+
 import rospy
 from sensor_msgs.msg import Image
 from nav_msgs.msg import Odometry

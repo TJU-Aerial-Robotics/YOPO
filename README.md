@@ -184,17 +184,12 @@ source devel/setup.bash
 roslaunch so3_quadrotor_simulator simulator.launch
 ```
 
-**2.3** Start the YOPO inference and the Planner (The implementation of `yopo_planner_node` will be moved to `test_yopo_ros.py` in the future). You can refer to [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for modification of the flight speed (The given weights are pretrained at 6 m/s and perform smoothly at speeds between 0 - 6 m/s).
+**2.3** Start the YOPO inference and the Planner. You can refer to [traj_opt.yaml](./flightlib/configs/traj_opt.yaml) for modification of the flight speed (The given weights are pretrained at 6 m/s and perform smoothly at speeds between 0 - 6 m/s).
 
 ```
 cd ~/YOPO/run
 conda activate yopo
-python test_yopo_ros.py --trial=1 --epoch=0 --iter=0
-```
-
-```
-cd ~/YOPO/flightlib/build
-./yopo_planner_node
+python test_yopo_ros_new.py --trial=1 --epoch=0 --iter=0
 ```
 
 **2.4** Visualization: start the RVIZ and publish the map.

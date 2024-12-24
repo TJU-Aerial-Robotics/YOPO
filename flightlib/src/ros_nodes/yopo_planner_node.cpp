@@ -136,8 +136,8 @@ void trajs_vis_cb(const std_msgs::Float32MultiArray::ConstPtr msg) {
 	pcl::PointCloud<pcl::PointXYZI>::Ptr lattice_trajs_cld(new pcl::PointCloud<pcl::PointXYZI>);
 	Eigen::Vector3d pos_1(0.0, 0.0, 0.0), vel_1(0.0, 0.0, 0.0), acc_1(0.0, 0.0, 0.0);
 	for (size_t i = 0; i < lattice_nodes.size(); i++) {
-		pos_1                          = lattice_nodes[i].first;
-		vel_1                          = lattice_nodes[i].second;
+		pos_1                          = quat_ * lattice_nodes[i].first;
+		vel_1                          = quat_ * lattice_nodes[i].second;
 		std::vector<double> endstate_lattice = {pos_1(0), vel_1(0), acc_1(0), pos_1(1), vel_1(1), acc_1(1), pos_1(2), vel_1(2), acc_1(2)};
 		traj_opt_bridge_for_vis->solveBVP(endstate_lattice);
 		traj_to_pcl(traj_opt_bridge_for_vis, lattice_trajs_cld);
