@@ -189,8 +189,15 @@ roslaunch so3_quadrotor_simulator simulator.launch
 ```
 cd ~/YOPO/run
 conda activate yopo
-python test_yopo_ros_new.py --trial=1 --epoch=0 --iter=0
+python test_yopo_ros.py --trial=1 --epoch=0 --iter=0
 ```
+
+```
+cd ~/YOPO/flightlib/build
+./yopo_planner_node
+```
+
+> The implementation of `yopo_planner_node` and `test_yopo_ros.py` are merged into `test_yopo_ros_new.py` (just `python test_yopo_ros_new.py`).
 
 **2.4** Visualization: start the RVIZ and publish the map.
 Then you can click the `2D Nav Goal` on RVIZ as the goal at will, just like the following GIF.
