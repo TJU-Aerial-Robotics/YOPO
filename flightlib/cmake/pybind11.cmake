@@ -1,5 +1,6 @@
 # Download and unpack pybind11 at configure time
 message(STATUS "Getting Pybind11...")
+message(STATUS "** NOTE ** If there's an issue connecting to GitHub, add a proxy to the download link in file flightlib/cmake/pybind11_download.cmake.")
 
 # set(PYBIND11_PYTHON_VERSION 3.6)
 set(PYBIND11_PYTHON_VERSION ${PYTHON_VERSION_STRING})   

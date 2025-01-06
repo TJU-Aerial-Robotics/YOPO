@@ -1,5 +1,6 @@
 # Download and unpack eigen at configure time
 message(STATUS "Getting Eigen...")
+message(STATUS "** NOTE ** If there's an issue connecting to GitHub, add a proxy to the download link in file flightlib/cmake/eigen_download.cmake.")
 
 configure_file(
   cmake/eigen_download.cmake

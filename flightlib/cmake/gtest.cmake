@@ -1,5 +1,6 @@
 # Download and unpack googletest at configure time
 message(STATUS "Getting gtests...")
+message(STATUS "** NOTE ** If there's an issue connecting to GitHub, add a proxy to the download link in file flightlib/cmake/gtest_download.cmake.")
 
 configure_file(cmake/gtest_download.cmake ${PROJECT_SOURCE_DIR}/externals/googletest-download/CMakeLists.txt)
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .

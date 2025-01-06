@@ -154,8 +154,7 @@ else()
 endif()
 
 # Summarize Flags
-set(CMAKE_CXX_FLAGS_RELEASE
-	"${CMAKE_CXX_FLAGS_RELEASE} ${CMAKE_CXX_FAST_FLAGS} ${CMAKE_CXX_ARCH_FLAGS} ${CMAKE_CXX_PAR_FLAGS}")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${CMAKE_CXX_FAST_FLAGS} ${CMAKE_CXX_ARCH_FLAGS} ${CMAKE_CXX_PAR_FLAGS}")
 string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 message(STATUS "The activated CXX RELEASE configuration is:\n ${CMAKE_CXX_FLAGS_RELEASE}")
 message(STATUS "The activated CXX DEBUG configuration is:\n ${CMAKE_CXX_FLAGS_DEBUG}")
@@ -222,7 +221,7 @@ else()
 		${CUDA_curand_LIBRARY}
 		${CUDA_cublas_LIBRARY}
 		${CUDA_LIBRARIES}
-		${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PROJECT_SOURCE_DIR}
+		${catkin_LIBRARIES}
 		yaml-cpp
 		zmq
 		zmqpp
@@ -317,4 +316,4 @@ target_link_libraries(map_visual_node
 	${catkin_LIBRARIES}
 )
 
-message(STATUS "================  !Done. No more nightmare!  ================")
+message(STATUS "================  !Done. You can build the project now!  ================")

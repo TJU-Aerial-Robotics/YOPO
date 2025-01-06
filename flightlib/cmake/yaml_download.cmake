@@ -4,7 +4,7 @@ project(yaml-download)
 
 include(ExternalProject)
 ExternalProject_Add(yaml
-  GIT_REPOSITORY    https://cf.ghproxy.cc/https://github.com/jbeder/yaml-cpp
+  GIT_REPOSITORY    https://github.com/jbeder/yaml-cpp
   GIT_TAG           master
   SOURCE_DIR        "${PROJECT_SOURCE_DIR}/externals/yaml-src"
   BINARY_DIR        "${PROJECT_SOURCE_DIR}/externals/yaml-bin"
