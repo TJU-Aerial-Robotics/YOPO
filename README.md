@@ -117,7 +117,7 @@ pip install -e .
 ## Train the Policy
 **1. Data collection** 
 
-For efficiency, we proactively collect dataset (images, states, and map) by randomly initializing the drone's states (positions and orientations). It may take nearly 1 hour for collection with default dataset size but you only need to collect once. The data will be saved at `run/yopo_sim`.
+For efficiency, we proactively collect dataset (images, states, and map) by randomly resetting the drone's states (positions and orientations). It may take nearly 1 hour for collection with default dataset size but you only need to collect once. The data will be saved at `run/yopo_sim`.
 ```
 cd ~/YOPO/run
 conda activate yopo
