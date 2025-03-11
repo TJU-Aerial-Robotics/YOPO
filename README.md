@@ -17,7 +17,7 @@ We propose **a learning-based planner for autonomous navigation in obstacle-dens
 
 **Learning-based Planner:** Considering the multi-modal nature of the navigation problem and to avoid local minima around initial values, our approach adopts a set of motion primitives as anchor to cover the searching space, and predicts the offsets and scores of primitives for further improvement (like the one-stage object detector YOLO). 
 
-**Training Strategy:** Compared to giving expert demonstrations for imitation in imitation learning or exploring by trial-and-error in reinforcement learning, we directly back-propagate the numerical gradient (e.g. from ESDF) to the weights of neural network in the training process, which is realistic, accurate, and timely.
+**Training Strategy:** Compared to giving expert demonstrations for imitation in imitation learning or exploring by trial-and-error in reinforcement learning, we directly back-propagate the numerical gradient (e.g. from ESDF) to the weights of neural network in the training process, which is straightforward, accurate, timely, and simplifies data collection.
 
 <table>
     <tr>
@@ -117,7 +117,7 @@ pip install -e .
 ## Train the Policy
 **1. Data collection** 
 
-For efficiency, we proactively collect dataset (images and states) by randomly initializing the drone's state (position and orientation). It may take nearly 1 hour for collection with default dataset size but you only need to collect once. The data will be saved at `run/yopo_sim`.
+For efficiency, we proactively collect dataset (images, states, and map) by randomly initializing the drone's states (positions and orientations). It may take nearly 1 hour for collection with default dataset size but you only need to collect once. The data will be saved at `run/yopo_sim`.
 ```
 cd ~/YOPO/run
 conda activate yopo
