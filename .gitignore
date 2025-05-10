@@ -22,7 +22,6 @@ _site
 # saved
 run/saved/*
 !run/saved/YOPO_1
-run/yopo_trt.pth
 externals/
 
 #logs
@@ -31,4 +30,8 @@ run/utils/*.csv
 # dataset
 /run/yopo_sim/*
 /run/rknn_quantization/*
+/run/*.onnx
+/run/*.pt
+/run/*.pth
+/run/*.rknn
 
