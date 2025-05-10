@@ -8,9 +8,11 @@ Video of this paper can be found: [YouTube](https://youtu.be/m7u1MYIuIn4), [bili
 Some realworld experiment: [YouTube](https://youtu.be/LHvtbKmTwvE), [bilibili](https://www.bilibili.com/video/BV1jBpve5EkP)
 
 <table>
-    <td align="center" style="border: none;"><img src="docs/realworld_1.gif" alt="Fig1" style="width: 100%;"></td>
-    <td align="center" style="border: none;"><img src="docs/realworld_2.gif" alt="Fig2" style="width: 100%;"></td>
-    <td align="center" style="border: none; width: 23%;"><img src="docs/platform.gif" alt="Fig3" style="width: 100%;"></td>
+  <tr>
+    <td align="center" style="border: none;"><img src="docs/realworld_1.gif" alt="Fig1" height="203"></td>
+    <td align="center" style="border: none;"><img src="docs/realworld_2.gif" alt="Fig2" height="203"></td>
+    <td align="center" style="border: none;"><img src="docs/platform.gif" alt="Fig3" height="203"></td>
+  </tr>
 </table>
 
 ### Hardware:
