@@ -9,9 +9,9 @@ Some realworld experiment: [YouTube](https://youtu.be/LHvtbKmTwvE), [bilibili](h
 
 <table>
   <tr>
-    <td align="center" style="border: none;"><img src="docs/realworld_1.gif" alt="Fig1" height="203"></td>
-    <td align="center" style="border: none;"><img src="docs/realworld_2.gif" alt="Fig2" height="203"></td>
-    <td align="center" style="border: none;"><img src="docs/platform.gif" alt="Fig3" height="203"></td>
+    <td align="center" width="38.5%"><img src="docs/realworld_1.gif" alt="Fig1" width="100%"></td>
+    <td align="center" width="38.5%"><img src="docs/realworld_2.gif" alt="Fig2" width="100%"></td>
+    <td align="center" width="23.0%"><img src="docs/platform.gif" alt="Fig3" width="100%"></td>
   </tr>
 </table>
 
