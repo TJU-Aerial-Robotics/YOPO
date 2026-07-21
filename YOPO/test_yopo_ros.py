@@ -1,10 +1,10 @@
 import rospy
-import std_msgs.msg
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Odometry, Path
+from geometry_msgs.msg import PoseStamped, Point
+from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import ColorRGBA
 from threading import Lock
-from sensor_msgs.msg import PointCloud2, PointField, Image
-from sensor_msgs import point_cloud2
+from sensor_msgs.msg import Image
 
 import cv2
 import os
@@ -85,9 +85,9 @@ class YopoNet:
         self.warm_up()
 
         # ros publisher
-        self.lattice_traj_pub = rospy.Publisher("/yopo_net/lattice_trajs_visual", PointCloud2, queue_size=1)
-        self.best_traj_pub = rospy.Publisher("/yopo_net/best_traj_visual", PointCloud2, queue_size=1)
-        self.all_trajs_pub = rospy.Publisher("/yopo_net/trajs_visual", PointCloud2, queue_size=1)
+        self.lattice_traj_pub = rospy.Publisher("/yopo_net/lattice_trajs_visual", MarkerArray, queue_size=1)
+        self.best_traj_pub = rospy.Publisher("/yopo_net/best_traj_visual", Path, queue_size=1)
+        self.all_trajs_pub = rospy.Publisher("/yopo_net/trajs_visual", MarkerArray, queue_size=1)
         self.ctrl_pub = rospy.Publisher(self.config["ctrl_topic"], PositionCommand, queue_size=1)
         # ros subscriber
         self.odom_sub = rospy.Subscriber(self.config['odom_topic'], Odometry, self.callback_odometry, queue_size=1, tcp_nodelay=True)
@@ -267,11 +267,16 @@ class YopoNet:
                 self.optimal_poly_y.get_position(t_values),
                 self.optimal_poly_z.get_position(t_values)
             ), axis=-1)
-            header = std_msgs.msg.Header()
-            header.stamp = rospy.Time.now()
-            header.frame_id = 'world'
-            point_cloud_msg = point_cloud2.create_cloud_xyz32(header, points_array)
-            self.best_traj_pub.publish(point_cloud_msg)
+            path = Path()
+            path.header.stamp = rospy.Time.now()
+            path.header.frame_id = 'world'
+            for p in points_array:
+                ps = PoseStamped()
+                ps.header = path.header
+                ps.pose.position.x, ps.pose.position.y, ps.pose.position.z = float(p[0]), float(p[1]), float(p[2])
+                ps.pose.orientation.w = 1.0
+                path.poses.append(ps)
+            self.best_traj_pub.publish(path)
         # lattice primitive
         if self.visualize and self.lattice_traj_pub.get_num_connections() > 0:
             lattice_endstate = self.lattice_primitive.lattice_pos_node.cpu().numpy()
@@ -284,16 +289,13 @@ class YopoNet:
             lattice_poly_z = Polys5Solver(start_pos[2], start_vel[2], self.desire_acc[2],
                                           lattice_endstate[:, 2] + start_pos[2], zero_state[:, 2], zero_state[:, 2], self.traj_time)
             t_values = np.arange(0, self.traj_time, dt)
-            points_array = np.stack((
+            pts = np.stack((
                 lattice_poly_x.get_position(t_values),
                 lattice_poly_y.get_position(t_values),
                 lattice_poly_z.get_position(t_values)
-            ), axis=-1)
-            header = std_msgs.msg.Header()
-            header.stamp = rospy.Time.now()
-            header.frame_id = 'world'
-            point_cloud_msg = point_cloud2.create_cloud_xyz32(header, points_array)
-            self.lattice_traj_pub.publish(point_cloud_msg)
+            ), axis=-1).reshape(-1, t_values.size, 3)
+            colors = [ColorRGBA(0.4, 0.4, 0.4, 0.5)] * pts.shape[0]
+            self.lattice_traj_pub.publish(self._line_markers(pts, 'lattice', colors, 0.1))
         # all predicted trajectories
         if self.visualize and self.all_trajs_pub.get_num_connections() > 0:
             all_poly_x = Polys5Solver(start_pos[0], start_vel[0], self.desire_acc[0],
@@ -303,20 +305,33 @@ class YopoNet:
             all_poly_z = Polys5Solver(start_pos[2], start_vel[2], self.desire_acc[2],
                                       pred_endstate[:, 2, 0] + start_pos[2], pred_endstate[:, 2, 1], pred_endstate[:, 2, 2], self.traj_time)
             t_values = np.arange(0, self.traj_time, dt)
-            points_array = np.stack((
+            pts = np.stack((
                 all_poly_x.get_position(t_values),
                 all_poly_y.get_position(t_values),
                 all_poly_z.get_position(t_values)
-            ), axis=-1)
-            scores = np.repeat(pred_score, t_values.size)
-            points_array = np.column_stack((points_array, scores))
-            header = std_msgs.msg.Header()
-            header.stamp = rospy.Time.now()
-            header.frame_id = 'world'
-            fields = [PointField('x', 0, PointField.FLOAT32, 1), PointField('y', 4, PointField.FLOAT32, 1),
-                      PointField('z', 8, PointField.FLOAT32, 1), PointField('intensity', 12, PointField.FLOAT32, 1)]
-            point_cloud_msg = point_cloud2.create_cloud(header, fields, points_array)
-            self.all_trajs_pub.publish(point_cloud_msg)
+            ), axis=-1).reshape(-1, t_values.size, 3)
+            s = np.asarray(pred_score, dtype=float).reshape(-1)
+            sn = (s - s.min()) / (s.max() - s.min()) if s.max() - s.min() > 1e-6 else np.full_like(s, 0.5)
+            colors = [ColorRGBA(float(x), 1.0 - float(x), 0.0, 0.5) for x in sn]  # low score (best) → green
+            self.all_trajs_pub.publish(self._line_markers(pts, 'trajs', colors, 0.1))
+
+    def _line_markers(self, pts, ns, colors, width):
+        now = rospy.Time.now()
+        msgs = MarkerArray()
+        for i, line_pts in enumerate(pts):
+            m = Marker()
+            m.header.frame_id = 'world'
+            m.header.stamp = now
+            m.ns = ns
+            m.id = i
+            m.type = Marker.LINE_STRIP
+            m.action = Marker.ADD
+            m.pose.orientation.w = 1.0
+            m.scale.x = width
+            m.color = colors[i]
+            m.points = [Point(float(p[0]), float(p[1]), float(p[2])) for p in line_pts]
+            msgs.markers.append(m)
+        return msgs
 
     def print_time(self, time0, time1, time2, time3, time4, time5):
         """
