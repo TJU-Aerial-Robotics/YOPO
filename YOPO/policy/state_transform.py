@@ -9,6 +9,14 @@ class StateTransform:
         self.lattice_primitive = LatticePrimitive.get_instance()
         self.goal_length = cfg['goal_length']
 
+        # Cache the lattice constants on CPU (used by the *_cpu methods in test):
+        yaw, pitch = self.lattice_primitive.getAngleLattice()
+        self.lattice_yaw_np = yaw.cpu().numpy()
+        self.lattice_pitch_np = pitch.cpu().numpy()
+        self.lattice_Rbp_np = self.lattice_primitive.getRotation().cpu().numpy()
+        self.lattice_pos_np = self.lattice_primitive.lattice_pos_node.cpu().numpy()
+        self.lattice_Rbp_flip_np = self.lattice_Rbp_np[::-1].copy()
+
     def pred_to_endstate(self, endstate_pred: torch.Tensor) -> torch.Tensor:
         """
             Transform the predicted state to the body frame (Original prediction → Primitive frame → Body frame).
@@ -50,7 +58,7 @@ class StateTransform:
         endstate = endstate.permute(0, 2, 1).reshape(B, 9, V, H)  # [B, 9, 3, 5]
         return endstate
 
-    def pred_to_endstate_cpu(self, endstate_pred: np.ndarray, lattice_id: torch.Tensor) -> np.ndarray:
+    def pred_to_endstate_cpu(self, endstate_pred: np.ndarray, lattice_id) -> np.ndarray:
         """
             Used during test:
             Numpy version of pred_to_endstate() on CPU (used in test, x10 times faster than torch on CUDA)
@@ -60,8 +68,7 @@ class StateTransform:
         delta_pitch = endstate_pred[:, 1] * self.lattice_primitive.pitch_diff
         radio = (endstate_pred[:, 2] + 1.0) * self.lattice_primitive.radio_range
 
-        yaw, pitch = self.lattice_primitive.getAngleLattice(lattice_id)
-        yaw, pitch = yaw.cpu().numpy(), pitch.cpu().numpy()
+        yaw, pitch = self.lattice_yaw_np[lattice_id], self.lattice_pitch_np[lattice_id]
         endstate_x = np.cos(pitch + delta_pitch) * np.cos(yaw + delta_yaw) * radio
         endstate_y = np.cos(pitch + delta_pitch) * np.sin(yaw + delta_yaw) * radio
         endstate_z = np.sin(pitch + delta_pitch) * radio
@@ -70,7 +77,7 @@ class StateTransform:
         endstate_vp = endstate_pred[:, 3:6] * self.lattice_primitive.vel_max
         endstate_ap = endstate_pred[:, 6:9] * self.lattice_primitive.acc_max
 
-        Rpb = self.lattice_primitive.getRotation(lattice_id).cpu().numpy()
+        Rpb = self.lattice_Rbp_np[lattice_id]
         endstate_vb = np.matmul(Rpb, endstate_vp[:, :, np.newaxis]).squeeze(-1)
         endstate_ab = np.matmul(Rpb, endstate_ap[:, :, np.newaxis]).squeeze(-1)
 
@@ -102,6 +109,19 @@ class StateTransform:
         out = out.view(B, 9, self.lattice_primitive.vertical_num, self.lattice_primitive.horizon_num)  # [B, 9, V, H]
         return out
 
+    def prepare_input_cpu(self, obs: np.ndarray) -> np.ndarray:
+        """
+            Used during test:
+            Numpy version of prepare_input() on CPU. The tensor is tiny ([B, 9, V, H]), so running it
+            on CUDA costs more in kernel launches than the math itself.
+            obs: [batch; vx, vy, vz, ax, ay, az, gx, gy, gz] in body frame
+        """
+        B, N = obs.shape[0], self.lattice_primitive.traj_num
+        transformed = np.matmul(obs.reshape(B, 1, 3, 3), self.lattice_Rbp_flip_np)  # [B, N, 3, 3]
+        out = transformed.reshape(B, N, 9).transpose(0, 2, 1)  # [B, 9, N]
+        return np.ascontiguousarray(out).reshape(B, 9, self.lattice_primitive.vertical_num,
+                                                 self.lattice_primitive.horizon_num)
+
     def unnormalize_obs(self, vel_acc):
         vel_acc[:, 0:3] = vel_acc[:, 0:3] * self.lattice_primitive.vel_max
         vel_acc[:, 3:6] = vel_acc[:, 3:6] * self.lattice_primitive.acc_max
@@ -115,6 +135,14 @@ class StateTransform:
         goal_norm = vel_acc_goal[:, 6:9].norm(dim=1, keepdim=True)
         vel_acc_goal[:, 6:9] = vel_acc_goal[:, 6:9] / goal_norm.clamp(min=self.goal_length)
         return vel_acc_goal
+
+    def normalize_obs_cpu(self, vel_acc_goal: np.ndarray) -> np.ndarray:
+        out = vel_acc_goal.copy()
+        out[:, 0:3] /= self.lattice_primitive.vel_max
+        out[:, 3:6] /= self.lattice_primitive.acc_max
+        goal_norm = np.linalg.norm(out[:, 6:9], axis=1, keepdims=True)
+        out[:, 6:9] /= np.maximum(goal_norm, self.goal_length)
+        return out
 
 
 def rotate_body2world(rot_wb, pos_b):

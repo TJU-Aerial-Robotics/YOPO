@@ -139,8 +139,7 @@ class YopoNet:
         goal_c = np.dot(Rotation_cw, goal_w)
 
         obs = np.concatenate((vel_c, acc_c, goal_c), axis=0).astype(np.float32)
-        obs_norm = self.state_transform.normalize_obs(torch.from_numpy(obs[None, :]))
-        return obs_norm
+        return self.state_transform.normalize_obs_cpu(obs[None, :])
 
     @torch.inference_mode()
     def callback_depth(self, data):
@@ -171,8 +170,9 @@ class YopoNet:
         # input prepare
         time1 = time.time()
         depth_input = torch.from_numpy(depth).to(self.device, non_blocking=True)  # (non_blocking: copying speed 3x)
-        obs_norm = self.process_odom().to(self.device, non_blocking=True)
-        obs_input = self.state_transform.prepare_input(obs_norm)
+        obs_norm = self.process_odom()
+        obs_input = self.state_transform.prepare_input_cpu(obs_norm)
+        obs_input = torch.from_numpy(obs_input).to(self.device, non_blocking=True)
         # torch.cuda.synchronize()
 
         time2 = time.time()
@@ -251,7 +251,7 @@ class YopoNet:
             score = score_pred[action_id]
         else:
             score = score_pred
-            endstate = self.state_transform.pred_to_endstate_cpu(endstate_pred, torch.arange(self.lattice_primitive.traj_num-1, -1, -1))
+            endstate = self.state_transform.pred_to_endstate_cpu(endstate_pred, np.arange(self.lattice_primitive.traj_num-1, -1, -1))
 
         return endstate, score
 
@@ -279,7 +279,7 @@ class YopoNet:
             self.best_traj_pub.publish(path)
         # lattice primitive
         if self.visualize and self.lattice_traj_pub.get_num_connections() > 0:
-            lattice_endstate = self.lattice_primitive.lattice_pos_node.cpu().numpy()
+            lattice_endstate = self.state_transform.lattice_pos_np
             lattice_endstate = np.dot(lattice_endstate, self.Rotation_wc.T)
             zero_state = np.zeros_like(lattice_endstate)
             lattice_poly_x = Polys5Solver(start_pos[0], start_vel[0], self.desire_acc[0],
