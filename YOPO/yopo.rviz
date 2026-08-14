@@ -98,7 +98,7 @@ Visualization Manager:
           Marker Topic: /yopo_net/best_traj_visual
           Name: BestPred
           Namespaces:
-            yopo_best: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray
@@ -211,17 +211,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.315258502960205
-        Y: -4.559581279754639
-        Z: 6.8406453132629395
+        X: 1.2837964296340942
+        Y: 0.6474674344062805
+        Z: 6.13951301574707
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.0747971534729004
+      Pitch: 0.7997974157333374
       Target Frame: odom
-      Yaw: 0.25537580251693726
+      Yaw: 3.1253771781921387
     Saved: ~
 Window Geometry:
   Camera:
@@ -243,5 +243,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1908
-  X: -37
-  Y: -7
+  X: -36
+  Y: -33
