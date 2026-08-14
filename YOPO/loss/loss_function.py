@@ -1,111 +1,95 @@
-import math
 import torch as th
 import torch.nn as nn
 from config.config import cfg
+from minco import MincoS3NU
 from loss.safety_loss import SafetyLoss
 from loss.smoothness_loss import SmoothnessLoss
 from loss.guidance_loss import GuidanceLoss
+from loss.feasible_loss import FeasibleLoss
 
 
 class YOPOLoss(nn.Module):
     def __init__(self):
-        """
-        Compute the cost: including smoothness, safety, guidance, goal cost, etc.
-        Currently, keeping multi-segment polynomial support (not yet verified), but only using a single-segment polynomial (m = 1) for now.
-        dp: decision parameters
-        df: fixed parameters
-        """
+        """2-piece MincoS3NU trajectory cost."""
         super(YOPOLoss, self).__init__()
-        self.sgm_time = cfg["sgm_time"]
         self.device = th.device("cuda" if th.cuda.is_available() else "cpu")
-        self._C, self._B, self._L, self._RJ, self._RA = self.qp_generation()
-        self._RJ = self._RJ.to(self.device)
-        self._RA = self._RA.to(self.device)
-        self._L = self._L.to(self.device)
-        self.denormalize_weight()
-        self.smoothness_loss = SmoothnessLoss(self._RJ, self._RA)
-        self.safety_loss = SafetyLoss(self._L)
+        self.piece_num = cfg["piece_num"]
+        self.minco = MincoS3NU(piece_num=self.piece_num, device=self.device)
+
+        # Per-component weights (keys match the cost dict returned by forward).
+        self.weights = {
+            "Smooth":    cfg["ws"],
+            "Acc":       cfg["wa"],
+            "Safety":    cfg["wc"],
+            "Goal":      cfg["wg"],
+            "Feasible":  cfg["wf"],
+            "Time":      cfg["wt"],
+        }
+
+        self.eval_per_piece = 15   # trajectory samples per piece (safety + diagnostics)
+        self.radius_num = int(cfg["radius_num"])   # time-uniform safety-corridor labels per trajectory
+        self.smoothness_loss = SmoothnessLoss()
+        self.safety_loss = SafetyLoss()
         self.goal_loss = GuidanceLoss()
+        self.feasible_loss = FeasibleLoss()   # speed + acceleration + peak-jerk hinges + shaping
+
         print("------ Actual Loss ------")
-        print(f"| {'smooth':<12} = {self.smoothness_weight:6.4f} |")
-        print(f"| {'safety':<12} = {self.safety_weight:6.4f} |")
-        print(f"| {'goal':<12} = {self.goal_weight:6.4f} |")
+        for name, w in self.weights.items():
+            print(f"| {name:<10} = {w:6.4f} |")
         print("-------------------------")
 
-    def qp_generation(self):
-        # 论文中的映射矩阵
-        A = th.zeros((6, 6))
-        for i in range(3):
-            A[2 * i, i] = math.factorial(i)
-            for j in range(i, 6):
-                A[2 * i + 1, j] = math.factorial(j) / math.factorial(j - i) * (self.sgm_time ** (j - i))
-
-        # H海森矩阵，对应Jerk
-        H = th.zeros((6, 6))
-        for i in range(3, 6):
-            for j in range(3, 6):
-                H[i, j] = i * (i - 1) * (i - 2) * j * (j - 1) * (j - 2) / (i + j - 5) * (self.sgm_time ** (i + j - 5))
-
-        # Q海森矩阵，对应Accel
-        Q = th.zeros((6, 6))
-        for i in range(2, 6):
-            for j in range(2, 6):
-                Q[i, j] = (i * (i - 1)) * (j * (j - 1)) / (i + j - 3) * (self.sgm_time ** (i + j - 3))
-
-        return self.stack_opt_dep(A, H, Q)
-
-    def stack_opt_dep(self, A, H, Q):
-        Ct = th.zeros((6, 6))
-        Ct[[0, 2, 4, 1, 3, 5], [0, 1, 2, 3, 4, 5]] = 1
-
-        _C = th.transpose(Ct, 0, 1)
-
-        B = th.inverse(A)
-
-        B_T = th.transpose(B, 0, 1)
-
-        _L = B @ Ct
-
-        _R_Jerk = _C @ (B_T) @ H @ B @ Ct
-
-        _R_Acc = _C @ (B_T) @ Q @ B @ Ct
-
-        return _C, B, _L, _R_Jerk, _R_Acc
-
-    def denormalize_weight(self):
+    def forward(self, head_pva, tail_pva, inner_pos, goal, map_id, durations):
         """
-        Denormalize the cost weight to ensure consistency across different speeds to simplify parameter tuning.
-        smoothness cost: time integral of jerk² is used as a smoothness cost.
-                         If the speed is scaled by n, the cost is scaled by n⁵ (because jerk * n⁶ and time * 1/n).
-        safety cost:     time integral of the distance from trajectory to obstacles.
-                         If the speed is scaled by n, the cost is scaled by 1/n (because time * 1/n).
-        goal cost:       projection of the trajectory onto goal direction.
-                         Independent of speed.
-        """
-        vel_scale = cfg["vel_max_train"] / 1.0
-        self.smoothness_weight = cfg["ws"] / vel_scale ** 5
-        self.accele_weight = cfg["wa"] / vel_scale ** 3
-        self.safety_weight = cfg["wc"]
-        self.goal_weight = cfg["wg"]
+        Evaluate the weighted cost of a batch of MINCO trajectories.
 
-    def forward(self, state, prediction, goal, map_id):
-        """
-        Args:
-            prediction: (batch_size, 3, 3) → [px, py, pz; vx, vy, vz; ax, ay, az] in world frame
-            state: (batch_size, 3, 3) → [px, py, pz; vx, vy, vz; ax, ay, az] in world frame
-            map_id: (batch_size) which ESDF map to query
+        head_pva / tail_pva: (B*N, 3, 3) world frame, rows [pos; vel; acc].
+        inner_pos:  (B*N, 3) inner waypoint (world); durations: (B*N, 2) per-piece durations.
 
         Returns:
-            cost: (batch_size) → weighted cost
+            costs: dict of weighted per-component costs, each (B*N,).
+            aux:   {"collided": (B*N,) bool free-ball-chain collision flag (catches tunneling),
+                    "stats":    dict of detached physical diagnostics,
+                    "radius_dist": (B*N, nr) detached SDF corridor labels (SNAP; see _radius_labels)}.
         """
-        # Fixed part: initial pos, vel, acc → (batch_size, 3, 3) [px, vx, ax; py, vy, ay; pz, vz, az]
-        Df = state.permute(0, 2, 1)
+        self.minco.set_parameters(head_pva, tail_pva, inner_pos.unsqueeze(1), durations=durations)
+        samples = self.minco.get_trajectory().sample(num_samples_per_piece=self.eval_per_piece)
 
-        # Decision parameters (local frame) → (batch_size, 3, 3) [px, vx, ax; py, vy, ay; pz, vz, az]
-        Dp = prediction.permute(0, 2, 1)
+        smooth_cost, acc_cost = self.smoothness_loss(self.minco)    # ∫ jerk² dt, ∫ acc² dt
+        safety_cost, collided, safety_dist = self.safety_loss(samples["pos"], map_id)
+        goal_cost = self.goal_loss(tail_pva[:, 0], goal, head_pva[:, 0], collided)
+        feasible_cost = self.feasible_loss(samples["vel"], samples["acc"], jer_samples=samples["jer"],
+                                           head_vel=head_pva[:, 1], tail_vel=tail_pva[:, 1],
+                                           goal_dir=goal - head_pva[:, 0])
+        time_cost = self.minco.durations.sum(dim=-1)
 
-        smoothness_cost, acceleration_cost = self.smoothness_loss(Df, Dp)
-        safety_cost = self.safety_loss(Df, Dp, map_id)
-        goal_cost = self.goal_loss(Df, Dp, goal)
+        raw = {"Smooth": smooth_cost, "Acc": acc_cost, "Safety": safety_cost, "Goal": goal_cost,
+               "Feasible": feasible_cost, "Time": time_cost}
+        costs = {k: self.weights[k] * v for k, v in raw.items()}
+        aux = {"collided": collided, "stats": self._traj_stats(samples, safety_dist),
+               "radius_dist": self._radius_labels(samples["times"], safety_dist)}
+        return costs, aux
 
-        return self.smoothness_weight * smoothness_cost, self.safety_weight * safety_cost, self.goal_weight * goal_cost, self.accele_weight * acceleration_cost
+    @th.no_grad()
+    def _radius_labels(self, times, safety_dist):
+        """SNAP corridor labels (B*N, nr): SDF of the safety sample nearest each of radius_num
+        time-uniform instants. times/safety_dist: (B*N, S)."""
+        nr = self.radius_num
+        t_k = th.linspace(1.0 / nr, 1.0, nr, device=times.device) * self.minco.durations.sum(dim=-1, keepdim=True)
+        snap = (times.unsqueeze(1) - t_k.unsqueeze(2)).abs().argmin(dim=2)   # (B*N, nr) nearest sample
+        return safety_dist.gather(1, snap)
+
+    @th.no_grad()
+    def _traj_stats(self, samples, safety_dist):
+        """Detached per-trajectory physical diagnostics (logging only)."""
+        speed = samples["vel"].norm(dim=-1)                            # (B*N, S)
+        M = self.eval_per_piece
+        dt = (self.minco.durations / M).repeat_interleave(M, dim=1)    # each sample spans duration/M
+        total_dur = self.minco.durations.sum(dim=-1)
+        path_length = (speed * dt).sum(dim=-1)
+        return {
+            "Duration": total_dur,
+            "PathLength": path_length,
+            "AvgSpeed": path_length / total_dur.clamp(min=1e-6),
+            "MaxSpeed": speed.amax(dim=-1),
+            "MinDist": safety_dist.amin(dim=-1)
+        }

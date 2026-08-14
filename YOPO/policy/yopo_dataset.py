@@ -16,60 +16,49 @@ class YOPODataset(Dataset):
         # image params
         self.height = int(cfg["image_height"])
         self.width = int(cfg["image_width"])
-        # ramdom state: x-direction: log-normal distribution, yz-direction: normal distribution
+        # random state sampling: x = lognormal (forward bias), y/z = normal
         self.vel_max = cfg["vel_max_train"]
         self.acc_max = cfg["acc_max_train"]
-        self.vx_lognorm_mean = np.log(1 - cfg["vx_mean_unit"])
-        self.vx_logmorm_sigma = np.log(cfg["vx_std_unit"])
-        self.v_mean = np.array([cfg["vx_mean_unit"], cfg["vy_mean_unit"], cfg["vz_mean_unit"]])
-        self.v_std = np.array([cfg["vx_std_unit"], cfg["vy_std_unit"], cfg["vz_std_unit"]])
-        self.a_mean = np.array([cfg["ax_mean_unit"], cfg["ay_mean_unit"], cfg["az_mean_unit"]])
-        self.a_std = np.array([cfg["ax_std_unit"], cfg["ay_std_unit"], cfg["az_std_unit"]])
+        self.v_mean = np.array(cfg["v_mean_unit"], dtype=float)   # [x, y, z]
+        self.v_std = np.array(cfg["v_std_unit"], dtype=float)
+        self.a_mean = np.array(cfg["a_mean_unit"], dtype=float)
+        self.a_std = np.array(cfg["a_std_unit"], dtype=float)
+        self.vx_lognorm_mean = np.log(1 - self.v_mean[0])         # vx lognormal from the x-axis params
+        self.vx_logmorm_sigma = np.log(self.v_std[0])
         self.goal_length = cfg['goal_length']
         self.goal_pitch_std = cfg["goal_pitch_std"]
         self.goal_yaw_std = cfg["goal_yaw_std"]
-        if mode == 'train': self.print_data()
+        self.goal_height_min, self.goal_height_max = cfg["goal_height_range"]   # goal world-frame altitude band (m)
 
         # dataset
+        if mode not in ('train', 'valid'):
+            raise ValueError(f"Invalid mode {mode}. Choose from 'train', 'valid'.")
+        split = 0 if mode == 'train' else 1   # column offset into train_test_split's (train, val) pairs
         base_dir = os.path.dirname(os.path.abspath(__file__))
         data_dir = os.path.join(base_dir, "../", cfg["dataset_path"])
-        self.img_list, self.map_idx, self.positions, self.quaternions = [], [], np.empty((0, 3), dtype=np.float32), np.empty((0, 4), dtype=np.float32)
 
-        datafolders = [f.path for f in os.scandir(data_dir) if f.is_dir()]
-        datafolders.sort(key=lambda x: int(os.path.basename(x)))
-        if mode == 'train':
-            print("Datafolders:")
-            for folder in datafolders:
-                print("    ", folder)
+        datafolders = sorted((f.path for f in os.scandir(data_dir) if f.is_dir()),
+                             key=lambda x: int(os.path.basename(x)))
+        if mode == 'train': self.print_data(datafolders)
 
         print("Loading", mode, "dataset")
-        for data_idx in range(len(datafolders)):
-            datafolder = datafolders[data_idx]
-
-            image_file_names = [datafolder + "/" + filename
-                                for filename in os.listdir(datafolder)
-                                if os.path.splitext(filename)[1] == '.png']
-            image_file_names.sort(key=lambda x: int(os.path.basename(x).split('.')[0].split("_")[1]))  # sort by filename to align with the label
-
+        self.img_list, self.map_idx, positions, quaternions = [], [], [], []
+        for data_idx, datafolder in enumerate(datafolders):
+            image_file_names = [datafolder + "/" + f for f in os.listdir(datafolder)
+                                if os.path.splitext(f)[1] == '.png']
+            image_file_names.sort(key=lambda x: int(os.path.basename(x).split('.')[0].split("_")[1]))  # align with label
             states = np.loadtxt(data_dir + f"/pose-{data_idx}.csv", delimiter=',', skiprows=1).astype(np.float32)
-            positions = states[:, 0:3]
-            quaternions = states[:, 3:7]
 
-            file_names_train, file_names_val, positions_train, positions_val, quaternions_train, quaternions_val = train_test_split(
-                image_file_names, positions, quaternions, test_size=val_ratio, random_state=0)
+            parts = train_test_split(image_file_names, states[:, 0:3], states[:, 3:7],
+                                     test_size=val_ratio, random_state=0)   # [img, pos, quat] × (train, val)
+            imgs, pos, quat = parts[split], parts[2 + split], parts[4 + split]
+            self.img_list.extend(imgs)
+            self.map_idx.extend([data_idx] * len(imgs))
+            positions.append(pos.astype(np.float32))
+            quaternions.append(quat.astype(np.float32))
 
-            if mode == 'train':
-                self.img_list.extend(file_names_train)
-                self.positions = np.vstack((self.positions, positions_train.astype(np.float32)))
-                self.quaternions = np.vstack((self.quaternions, quaternions_train.astype(np.float32)))
-                self.map_idx.extend([data_idx] * len(file_names_train))
-            elif mode == 'valid':
-                self.img_list.extend(file_names_val)
-                self.positions = np.vstack((self.positions, positions_val.astype(np.float32)))
-                self.quaternions = np.vstack((self.quaternions, quaternions_val.astype(np.float32)))
-                self.map_idx.extend([data_idx] * len(file_names_val))
-            else:
-                raise ValueError(f"Invalid mode {mode}. Choose from 'train', 'valid'.")
+        self.positions = np.vstack(positions) if positions else np.empty((0, 3), np.float32)
+        self.quaternions = np.vstack(quaternions) if quaternions else np.empty((0, 4), np.float32)
 
         print(f"=============== {mode.capitalize()} Data Summary ===============")
         print(f"{'Images'      :<12} | Count: {len(self.img_list):<3} |  Shape: {self.width},{self.height}")
@@ -81,32 +70,41 @@ class YOPODataset(Dataset):
         return len(self.img_list)
 
     def __getitem__(self, item):
-        # 1. read the image
-        # NOTE: The depth images are normalized from 0–20m to a 0–1 and converted to int16 during data collection.
-        image = cv2.imread(self.img_list[item], -1).astype(np.float32)
-        image = np.expand_dims(cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_NEAREST) / 65535.0, axis=0)
+        # 1. depth image + body frames (W: world, b: level-yaw body)
+        image = self._read_depth(item)
+        R_WB, R_Bw, _ = self._body_frames(item)
 
-        # W: world frame; B/b: body frame
-        # w: level with the ground but with the same orientation (yaw) as the body frame
-        q_wxyz = self.quaternions[item, :]  # q: wxyz
-        R_WB = R.from_quat([q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0]])
-        euler_angles = R_WB.as_euler('ZYX', degrees=False)  # [yaw(z) pitch(y) roll(x)]
-        R_Bw = R.from_euler('ZYX', [0, euler_angles[1], euler_angles[2]], degrees=False).inv()
-
-        # 2. get random vel, acc in the direction of the quadrotor
+        # 2. random current state (rotated into the body frame)
         vel_w, acc_w = self._get_random_state()
         vel_b, acc_b = R_Bw.apply(vel_w), R_Bw.apply(acc_w)
 
-        # 3. generate random goal in front of the quadrotor
-        goal_w = self._get_random_goal()
+        # 3. random goal
+        goal_w = self._get_random_goal(self.positions[item, 2])
         goal_b = R_Bw.apply(goal_w)
 
-        random_obs = np.hstack((vel_b, acc_b, goal_b)).astype(np.float32)
-        rot_wb = R_WB.as_matrix().astype(np.float32)  # transform to rot_matrix in numpy is faster than using quat in pytorch
-        # vel & acc & goal are in body frame, NWU, and no-normalization
-        return image, self.positions[item], rot_wb, random_obs, self.map_idx[item]
+        # obs = vel|acc|goal, body frame, NWU, unnormalized
+        obs = np.hstack((vel_b, acc_b, goal_b)).astype(np.float32)
+        rot_wb = R_WB.as_matrix().astype(np.float32)
+        return image, self.positions[item], rot_wb, obs, self.map_idx[item]
+
+    def _read_depth(self, item):
+        """Read + resize the depth png to (1, H, W) float in [0, 1] (stored as int16, 0–20 m → 0–1)."""
+        image = cv2.imread(self.img_list[item], -1).astype(np.float32)
+        image = cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_NEAREST) / 65535.0
+        return np.expand_dims(image, axis=0)
+
+    def _body_frames(self, item):
+        """From the stored quaternion: R_WB (body→world), R_Bw (world→level-yaw body, roll/pitch
+        removed), and euler ZYX = [yaw, pitch, roll]."""
+        q = self.quaternions[item, :]  # wxyz
+        R_WB = R.from_quat([q[1], q[2], q[3], q[0]])
+        euler = R_WB.as_euler('ZYX', degrees=False)
+        R_Bw = R.from_euler('ZYX', [0, euler[1], euler[2]], degrees=False).inv()
+        return R_WB, R_Bw, euler
 
     def _get_random_state(self):
+        """Sample a random (vel, acc) in the level frame: x is right-skewed lognormal (cruise-forward
+        bias), y/z Gaussian; reject norms above 1.2× the max as outliers."""
         while True:
             vel = self.vel_max * (self.v_mean + self.v_std * np.random.randn(3))
             right_skewed_vx = -1
@@ -123,7 +121,10 @@ class YOPODataset(Dataset):
                 break
         return vel, acc
 
-    def _get_random_goal(self):
+    def _get_random_goal(self, pos_z=1.0):
+        """Random goal displacement in the level 'w' frame: sample yaw direction + distance (90% far
+        at goal_length, 10% near), then override the height so the goal's world altitude lands in the
+        configured band while keeping the total distance unchanged. pos_z is the drone's world height."""
         goal_pitch_angle = np.random.normal(0.0, self.goal_pitch_std)
         goal_yaw_angle = np.random.normal(0.0, self.goal_yaw_std)
         goal_pitch_angle, goal_yaw_angle = np.radians(goal_pitch_angle), np.radians(goal_yaw_angle)
@@ -133,9 +134,20 @@ class YOPODataset(Dataset):
         random_near = np.random.rand()
         if random_near < 0.1:
             goal_w_dir = random_near * 10 * goal_w_dir
-        return self.goal_length * goal_w_dir
+        goal_w = self.goal_length * goal_w_dir
+        # z from the world-height band (world height = pos_z + gz, clipped to ±gdist); horizontal
+        # rescaled (Pythagoras) so the total distance stays gdist.
+        gdist = np.linalg.norm(goal_w)
+        gz = np.clip(np.random.uniform(self.goal_height_min, self.goal_height_max) - pos_z, -gdist, gdist)
+        hxy = goal_w[:2]
+        hxy = hxy / (np.linalg.norm(hxy) + 1e-9) * np.sqrt(max(gdist ** 2 - gz ** 2, 0.0))
+        return np.array([hxy[0], hxy[1], gz])
 
-    def print_data(self):
+    def print_data(self, datafolders):
+        """Print the sampling-range table: 5–95% velocity/acceleration bands and goal yaw/pitch spans."""
+        print("Datafolders:")
+        for folder in datafolders:
+            print("    ", folder)
         import scipy.stats as stats
         # 计算Vx 5% ~ 95% 区间
         p5 = self.vel_max * np.exp(stats.norm.ppf(0.05, loc=self.vx_lognorm_mean, scale=self.vx_logmorm_sigma))
@@ -161,6 +173,7 @@ class YOPODataset(Dataset):
         print("-----------------------------------------------------")
 
     def plot_sample_distribution(self):
+        """Debug: histogram the goal-direction / velocity / acceleration sample distributions."""
         import matplotlib.pyplot as plt
         # ===== 采样 =====
         N = 10000
@@ -217,22 +230,3 @@ if __name__ == '__main__':
     # plot the random sample
     dataset = YOPODataset()
     dataset.plot_sample_distribution()
-
-    # select the best num_workers
-    max_workers = os.cpu_count()
-    print(f"\n✅ cpu_count = {max_workers}")
-
-    results = []
-    for nw in range(0, max_workers + 1):
-        data_loader = DataLoader(dataset, batch_size=16, shuffle=True, num_workers=nw)
-        start = time.time()
-        for i, _ in enumerate(data_loader):
-            if i > 50:  # 只测前50个batch
-                break
-        torch.cuda.synchronize() if torch.cuda.is_available() else None
-        elapsed = time.time() - start
-        results.append((nw, elapsed))
-        print(f"num_workers={nw}: {elapsed:.3f}s")
-
-    best = min(results, key=lambda x: x[1])
-    print(f"\n✅ 最优 num_workers = {best[0]}, 平均耗时={best[1]:.3f}s")

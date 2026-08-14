@@ -5,6 +5,8 @@
         2 git clone https://github.com/NVIDIA-AI-IOT/torch2trt
           cd torch2trt
           python setup.py install
+    run (from the YOPO directory):
+        python yopo_trt_transfer.py --trial=1 --epoch=50
 """
 
 import os
@@ -39,7 +41,7 @@ if __name__ == "__main__":
     policy.eval()
 
     # The inputs should be consistent with training
-    depth = np.zeros(shape=[1, 1, 96, 160], dtype=np.float32)
+    depth = np.zeros(shape=[1, 1, cfg["image_height"], cfg["image_width"]], dtype=np.float32)
     obs = np.zeros(shape=[1, 9, cfg["vertical_num"], cfg["horizon_num"]], dtype=np.float32)
     depth_in = torch.from_numpy(depth).to(device)
     obs_in = torch.from_numpy(obs).to(device)
@@ -51,28 +53,30 @@ if __name__ == "__main__":
 
     print("Evaluation...")
     # Warm Up...
-    traj_trt, score_trt = model_trt(depth_in, obs_in)
-    traj, score = policy(depth_in, obs_in)
+    traj_trt, score_trt, radius_trt = model_trt(depth_in, obs_in)
+    traj, score, radius = policy(depth_in, obs_in)
     torch.cuda.synchronize()
 
     # PyTorch Latency
     torch_start = time.time()
-    traj, score = policy(depth_in, obs_in)
+    traj, score, radius = policy(depth_in, obs_in)
     torch.cuda.synchronize()
     torch_end = time.time()
 
     # TensorRT Latency
     trt_start = time.time()
-    traj_trt, score_trt = model_trt(depth_in, obs_in)
+    traj_trt, score_trt, radius_trt = model_trt(depth_in, obs_in)
     torch.cuda.synchronize()
     trt_end = time.time()
 
     # Transfer Error
     traj_error = torch.mean(torch.abs(traj - traj_trt))
     score_error = torch.mean(torch.abs(score - score_trt))
+    radius_error = torch.mean(torch.abs(radius - radius_trt))
 
     print(f"Torch Latency: {1000 * (torch_end - torch_start):.3f} ms, "
           f"TensorRT Latency: {1000 * (trt_end - trt_start):.3f} ms, "
-          f"Transfer Trajectory Error: {traj_error.item():.6f},"
-          f"Transfer Score Error: {score_error.item():.6f}")
+          f"Transfer Trajectory Error: {traj_error.item():.6f}, "
+          f"Transfer Score Error: {score_error.item():.6f}, "
+          f"Transfer Radius Error: {radius_error.item():.6f}")
 

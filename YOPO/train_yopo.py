@@ -36,7 +36,6 @@ if __name__ == "__main__":
     trainer = YopoTrainer(
         learning_rate=1.5e-4,
         batch_size=16,
-        loss_weight=[1.0, 1.0],
         tensorboard_path=log_dir,
         checkpoint_path=checkpoint_path,
         save_on_exit=True,

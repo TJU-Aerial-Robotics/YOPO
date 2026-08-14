@@ -1,23 +1,19 @@
 # 1. ROS节点参数 =============================================================
 odom_topic: "/sim/odom"
 depth_topic: "/depth_image"
+stereo_topic: "/stereo_image"
 lidar_topic: "/lidar_points"
 
 render_depth: true
-depth_fps: 33          # odom 100hz, depth 33hz, 每3帧odom渲染一次
+render_stereo: false    # 为了双目深度更精细，开启时可修改参数: 1. 地图分辨率resolution 0.05; 2. 更小的地图尺寸节省计算（注意有些地图会因此变密）
+depth_fps: 33           # odom 100hz, depth 33hz, 每3帧odom渲染一次
 
 render_lidar: true
 lidar_fps: 10
 
 # 2. 仿真环境参数 =============================================================
 random_map: true       # 使用预先建立的点云地图还是随机地图
-resolution: 0.1        # 地图分辨率
-
-# 2.1 预先建立的点云地图 (此分支已弃用)
-ply_file: "src/pointcloud/forest.ply"
-expand_x_times: 0      # x方向复制次数（cuda版不使用）
-expand_y_times: 0      # y方向复制次数（cuda版不使用）
-occupy_threshold: 0    # 大于多少个点才认为占据（cpu版不使用）
+resolution: 0.1        # 地图分辨率 (Stereo 请使用0.05)
 
 # 2.2 随机地图 ======
 seed: 3
@@ -48,18 +44,18 @@ window_size_min: 2.0
 window_size_max: 2.8
 add_ceiling: 0         # 是否添加天花板
 # 墙面
-wall_width_min: 0.5
-wall_width_max: 6.0
+wall_width_min: 1.0
+wall_width_max: 4.0
 wall_thick: 0.5
 wall_number: 100       # 墙面数量
 wall_ceiling: 1        # 是否添加天花板
 
 # 3. 传感器参数 ==============================================================
 camera:
-  fx: 80.0             # focal length x
+  fx: 80.0             # focal length x   (深度真值/规划用, 低分辨率)
   fy: 80.0             # focal length y
   cx: 80.0             # principal point x (image center)
-  cy: 45.0              # principal point y (image center)
+  cy: 45.0             # principal point y (image center)
   image_width: 160
   image_height: 90
   max_depth_dist: 20.0
@@ -74,14 +70,34 @@ lidar:
   horizontal_resolution: 1.0     # 水平分辨率为1度，horizontal_resolution * horizontal_num = 360
   max_lidar_dist: 20.0
 
+# 3.1 伪双目 (用世界散斑纹理模拟结构光, 供 simsense 计算类 RealSense 深度) =========
+stereo:
+  baseline: 0.15                       # 双目基线 (m), 15cm
+  camera:                              # 双目独立分辨率/内参 (与上面 camera 解耦)
+    fx: 320.0
+    fy: 320.0
+    cx: 320.0
+    cy: 180.0
+    image_width: 640
+    image_height: 360
+    max_depth_dist: 20.0
+
 # 4. 数据收集参数 =============================================================
 save_path: "../dataset/"
+collect_stereo: false    # 收集双目立体相机还是深度真值
 env_num: 10             # 地图数量
 image_num: 10000        # 每个地图收集图像数量
 roll_range: 30          # 采样点的roll角度范围
 pitch_range: 30         # 采样点的pitch角度范围
 x_range: 40             # x方向采样范围 (请小于地图大小x_length并保留一定边缘间距)
 y_range: 40             # y方向采样范围 (请小于地图大小y_length并保留一定边缘间距)
-z_range: [0.5, 4]       # z方向采样范围 (请小于地图大小z_length并保留一定边缘间距)
-safe_dist: 0.5          # 安全距离，采样点与障碍的最小距离
+z_range: [0.6, 4]       # z方向采样范围 (请小于地图大小z_length并保留一定边缘间距)
+safe_dist: 0.6          # 安全距离，采样点与障碍的最小距离
 ply_res: 0.1            # 保存点云滤波的体素网格大小
+
+
+# 2.1 预先建立的点云地图 (此分支已弃用)
+ply_file: "src/pointcloud/forest.ply"
+expand_x_times: 0      # x方向复制次数（cuda版不使用）
+expand_y_times: 0      # y方向复制次数（cuda版不使用）
+occupy_threshold: 0    # 大于多少个点才认为占据（cpu版不使用）

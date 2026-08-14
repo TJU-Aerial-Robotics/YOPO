@@ -1,7 +1,7 @@
 <launch>
-    <arg name="init_x" value="0.0"/>
-    <arg name="init_y" value="0.0"/>
-    <arg name="init_z" value="2.0"/> 
+    <arg name="init_x" default="0.0"/>
+    <arg name="init_y" default="0.0"/>
+    <arg name="init_z" default="2.0"/>
 
     <node pkg="so3_quadrotor_simulator" type="quadrotor_simulator_so3" name="quadrotor_simulator_so3" output="screen">
         <param name="rate/odom" value="100.0"/>
@@ -19,11 +19,12 @@
         <param name="is_simulation" value="true"/>
         <param name="use_disturbance_observer" value="true"/>
         <param name="hover_thrust" value="0.375"/>
+        <param name="takeoff_altitude" value="$(arg init_z)"/>
         <remap from="~odom" to="/sim/odom"/>
         <remap from="~imu" to="/sim/imu"/>
         <remap from="~position_cmd" to="/so3_control/pos_cmd"/>
         <remap from="~so3_cmd" to="so3_cmd"/>
-        <param name="record_log" value = "false"/>  
+        <param name="record_log" value = "false"/>
         <param name="logger_file_name" value = "$(find so3_control)/logger/"/>   
     </node>
 

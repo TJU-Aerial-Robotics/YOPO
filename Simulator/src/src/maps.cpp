@@ -1080,7 +1080,7 @@ void Maps::room()
 {
   double _resolution = 1 / info.scale;
   double room_L = info.sizeX / (info.scale * (double)room_number);
-  double room_W = 0.2;
+  double room_W = 0.6;
   double room_H = info.sizeZ / info.scale;
 
   Eigen::Matrix3f rotation0 = Eigen::AngleAxisf(0, Eigen::Vector3f::UnitZ()).matrix();         // 0度旋转

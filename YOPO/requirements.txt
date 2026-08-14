@@ -6,6 +6,8 @@ torchvision==0.19.1+cu118
 opencv-python==4.11.0.86
 scipy==1.10.1
 scikit-build==0.18.1
+scikit-learn
+matplotlib
 ruamel-yaml==0.17.21
 numpy==1.22.3
 tensorboard==2.14.0

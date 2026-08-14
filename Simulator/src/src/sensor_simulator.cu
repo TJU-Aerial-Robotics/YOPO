@@ -1,7 +1,8 @@
 #include "sensor_simulator.cuh"
+#include <simsense/core.h>   // 矢量化后的 simsense 引擎（去 pybind 原生 C++ 版）
 
 namespace raycast
-{   
+{
     GridMap::GridMap(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float resolution, int occupy_threshold = 1){
         const float epsilon = 0.001f;   // 避免数值误差导致 (1)建图空行 (2)边缘点被忽略
         Eigen::Vector4f min_pt, max_pt;
@@ -102,6 +103,119 @@ namespace raycast
         return 0;        
     }
 
+    // 整数哈希 (Wang hash)，把一个整数打散成均匀分布
+    __device__ __forceinline__ unsigned int wangHash(unsigned int s)
+    {
+        s = (s ^ 61u) ^ (s >> 16);
+        s *= 9u;
+        s = s ^ (s >> 4);
+        s *= 0x27d4eb2du;
+        s = s ^ (s >> 15);
+        return s;
+    }
+
+    // 世界空间伪随机散斑：按 cell 把世界点量化到立方格，每格一个随机灰度。
+    // 只依赖世界坐标 -> 左右视角对同一表面点得到相同灰度 -> 可双目匹配（模拟结构光）。
+    __device__ __forceinline__ unsigned char speckle3D(const float3 &p, const TextureParams &tex)
+    {
+        int ix = (int)floorf(p.x / tex.cell);
+        int iy = (int)floorf(p.y / tex.cell);
+        int iz = (int)floorf(p.z / tex.cell);
+        unsigned int h = wangHash(((unsigned int)(ix * 73856093)) ^
+                                  ((unsigned int)(iy * 19349663)) ^
+                                  ((unsigned int)(iz * 83492791)) ^ tex.seed);
+        float r = (h & 0xFFFFFFu) / (float)0xFFFFFFu; // [0,1)
+        float val = tex.base + tex.amplitude * (r - 0.5f);
+        val = fminf(255.0f, fmaxf(0.0f, val));
+        return (unsigned char)(val + 0.5f);
+    }
+
+    // 天空/远处弱纹理：只依赖【世界视线方向】，左右相机同一像素方向相同 -> 视差≈0 处匹配
+    // (=远/无效)。给无纹理背景提供可竞争纹理，避免近处障碍边缘被前景膨胀“撑胖”。
+    __device__ __forceinline__ unsigned char skyTexture(const float3 &dir, const TextureParams &tex)
+    {
+        int ix = (int)floorf(dir.x * tex.sky_scale);
+        int iy = (int)floorf(dir.y * tex.sky_scale);
+        int iz = (int)floorf(dir.z * tex.sky_scale);
+        unsigned int h = wangHash(((unsigned int)(ix * 73856093)) ^
+                                  ((unsigned int)(iy * 19349663)) ^
+                                  ((unsigned int)(iz * 83492791)) ^ (tex.seed + 777u));
+        float r = (h & 0xFFFFFFu) / (float)0xFFFFFFu;
+        float val = tex.base + tex.sky_amplitude * (r - 0.5f);
+        val = fminf(255.0f, fmaxf(0.0f, val));
+        return (unsigned char)(val + 0.5f);
+    }
+
+    // 与 cameraRaycastKernel 相同的射线步进，但额外输出散斑纹理灰度图。
+    // 深度仍用 voxel 量化点（避免摩尔纹）；纹理用连续命中点（更细的斑点）。
+    __global__ void cameraRaycastIRKernel(float* depth_values, unsigned char* ir_values, GridMap grid_map, CameraParams camera_param, cudaMat::SE3<float> T_wc, TextureParams tex)
+    {
+        int u = threadIdx.x;
+        int v = blockIdx.x;
+
+        if (u < camera_param.image_width && v < camera_param.image_height)
+        {
+            float y = -(u - camera_param.cx) / camera_param.fx;
+            float z = -(v - camera_param.cy) / camera_param.fy;
+            float x = 1.0f;
+
+            float length = sqrtf(x * x + y * y + z * z);
+            x /= length; y /= length; z /= length;
+
+            float dx = 1.0 * grid_map.raycast_step_;
+            float dy = (y / x) * dx;
+            float dz = (z / x) * dx;
+
+            // 增量世界点更新：把每步的 SE3 变换提到循环外（world点 = 相机光心 + scale*step_w）
+            float3 step_w = T_wc.rotate(make_float3(dx, dy, dz));
+            float3 point_w = T_wc * make_float3(0.0f, 0.0f, 0.0f); // 相机光心(世界系)
+            float point_x = 0.0f;
+            float depth = 0.0f;
+            unsigned char ir = (unsigned char)tex.background;
+
+            while (1)
+            {
+                point_x += dx;
+                point_w.x += step_w.x;
+                point_w.y += step_w.y;
+                point_w.z += step_w.z;
+
+                Vector3f point(point_w.x, point_w.y, point_w.z);
+
+                int occupied = grid_map.mapQuery(point);
+
+                if (occupied == 1)
+                {
+                    // 纹理：连续命中点（步进精度 ~0.5*resolution，比 voxel 更细）
+                    ir = speckle3D(point_w, tex);
+                    // 深度：voxel 量化点（与原 renderDepthImage 保持一致）
+                    Vector3i occ_vox_w = grid_map.Pos2Vox(point);
+                    Vector3f occ_point_w = grid_map.Vox2Pos(occ_vox_w);
+                    float3 occ_point_w_ = make_float3(occ_point_w.x, occ_point_w.y, occ_point_w.z);
+                    float3 occ_point_c_ = T_wc.inv() * occ_point_w_;
+                    depth = occ_point_c_.x;
+                    break;
+                }
+
+                if (point_x >= camera_param.max_depth_dist){
+                    depth = camera_param.max_depth_dist;
+                    // 远/无命中：给一层按视线方向的弱纹理（匹配在视差≈0=远），背景不再是无纹理空洞。
+                    if (tex.sky_texture) {
+                        float3 raydir_w = T_wc.rotate(make_float3(x, y, z));
+                        ir = skyTexture(raydir_w, tex);
+                    }
+                    break;
+                }
+            }
+
+            if (camera_param.normalize_depth)
+                depth = depth / camera_param.max_depth_dist;
+            int idx = v * camera_param.image_width + u;
+            depth_values[idx] = depth;
+            ir_values[idx] = ir;
+        }
+    }
+
     __global__ void cameraRaycastKernel(float* depth_values, GridMap grid_map, CameraParams camera_param, cudaMat::SE3<float> T_wc)
     {
         int u = threadIdx.x;
@@ -127,20 +241,18 @@ namespace raycast
             float dy = (y / x) * dx;
             float dz = (z / x) * dx;
 
-            // 递增射线方向上的每个轴
-            int scale = 0;
+            // 增量世界点更新：把每步的 SE3 变换提到循环外（world点 = 相机光心 + scale*step_w）
+            float3 step_w = T_wc.rotate(make_float3(dx, dy, dz));
+            float3 point_w = T_wc * make_float3(0.0f, 0.0f, 0.0f); // 相机光心(世界系)
+            float point_x = 0.0f;
             float depth = 0.0f;
 
             while (1)
             {
-                scale += 1;
-
-                float point_x = scale * dx;
-                float point_y = scale * dy;
-                float point_z = scale * dz;
-
-                float3 point_c = make_float3(point_x, point_y, point_z);
-                float3 point_w = T_wc * point_c;
+                point_x += dx;
+                point_w.x += step_w.x;
+                point_w.y += step_w.y;
+                point_w.z += step_w.z;
 
                 Vector3f point(point_w.x, point_w.y, point_w.z);
 
@@ -185,8 +297,49 @@ namespace raycast
         depth_image.create(camera_param->image_height, camera_param->image_width, CV_32FC1);
 
         cudaMemcpy(depth_image.data, depth_values, num_elements * sizeof(float), cudaMemcpyDeviceToHost);
-        
+
         cudaFree(depth_values);
+        return;
+    }
+
+    void renderDepthAndIR(GridMap* grid_map, CameraParams* camera_param, cudaMat::SE3<float>& T_wc, const TextureParams& tex, cv::Mat& depth_image, cv::Mat& ir_image)
+    {
+        float* depth_values;
+        unsigned char* ir_values;
+        size_t num_elements = camera_param->image_width * camera_param->image_height;
+        cudaMallocManaged(&depth_values, num_elements * sizeof(float));
+        cudaMallocManaged(&ir_values, num_elements * sizeof(unsigned char));
+
+        cameraRaycastIRKernel<<<camera_param->image_height, camera_param->image_width>>>(depth_values, ir_values, *grid_map, *camera_param, T_wc, tex);
+
+        cudaDeviceSynchronize();
+
+        depth_image.create(camera_param->image_height, camera_param->image_width, CV_32FC1);
+        ir_image.create(camera_param->image_height, camera_param->image_width, CV_8UC1);
+
+        cudaMemcpy(depth_image.data, depth_values, num_elements * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(ir_image.data, ir_values, num_elements * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+
+        cudaFree(depth_values);
+        cudaFree(ir_values);
+        return;
+    }
+
+    // 与 renderDepthImage 并列：渲染左右伪红外 -> 直接喂 simsense 算深度（无中间红外发布）。
+    void renderStereoImage(GridMap* grid_map, CameraParams* camera_param,
+                           cudaMat::SE3<float>& T_wc_left, cudaMat::SE3<float>& T_wc_right,
+                           const TextureParams& tex, simsense::DepthSensorEngine* engine,
+                           cv::Mat& depth_image)
+    {
+        // 渲染左右两路伪红外（深度真值这里不需要，丢弃）
+        cv::Mat depth_dummy, ir_left, ir_right;
+        renderDepthAndIR(grid_map, camera_param, T_wc_left, tex, depth_dummy, ir_left);
+        renderDepthAndIR(grid_map, camera_param, T_wc_right, tex, depth_dummy, ir_right);
+
+        depth_image.create(camera_param->image_height, camera_param->image_width, CV_32FC1);
+
+        // 直接调用 simsense 引擎计算深度（rectified=true，已在构造时配置）
+        engine->compute(ir_left.data, ir_right.data, reinterpret_cast<float*>(depth_image.data));
         return;
     }
 

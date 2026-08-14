@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iomanip>
 #include "sensor_simulator.cuh"
+#include <simsense/core.h>   // 内置 simsense 双目匹配引擎
 #include "maps.hpp"
 
 using namespace raycast;
@@ -97,6 +98,37 @@ int main(int argc, char **argv)
     float pitch = config["camera"]["pitch"].as<float>() * M_PI / 180.0;
     Eigen::AngleAxisf angle_axis(pitch, Eigen::Vector3f::UnitY());
     Eigen::Quaternionf quat_bc(angle_axis);
+
+    // 1b. 双目立体相机 (collect_stereo=true 时保存双目立体深度，否则保存深度真值)
+    bool collect_stereo = config["collect_stereo"] ? config["collect_stereo"].as<bool>() : false;
+    CameraParams stereo_camera;
+    TextureParams tex;
+    float baseline = 0.15f;
+    simsense::DepthSensorEngine* stereo_engine = nullptr;
+    if (collect_stereo) {
+        YAML::Node st = config["stereo"];
+        baseline = st["baseline"].as<float>();
+        YAML::Node sc = st["camera"];
+        stereo_camera.fx = sc["fx"].as<float>();
+        stereo_camera.fy = sc["fy"].as<float>();
+        stereo_camera.cx = sc["cx"].as<float>();
+        stereo_camera.cy = sc["cy"].as<float>();
+        stereo_camera.image_width = sc["image_width"].as<int>();
+        stereo_camera.image_height = sc["image_height"].as<int>();
+        stereo_camera.max_depth_dist = sc["max_depth_dist"].as<float>();
+        stereo_camera.normalize_depth = false;
+        // 散斑纹理与 simsense 匹配参数：见 sensor_simulator.cuh 的 TextureParams / StereoMatcherParams
+        StereoMatcherParams mp;
+        stereo_engine = new simsense::DepthSensorEngine(
+            (uint32_t)stereo_camera.image_height, (uint32_t)stereo_camera.image_width,
+            stereo_camera.fx, baseline, mp.min_depth, mp.max_depth, (uint64_t)mp.ir_noise_seed,
+            mp.ir_speckle_shape, mp.ir_speckle_scale, mp.ir_gaussian_mu, mp.ir_gaussian_sigma, /*rectified=*/true,
+            (uint8_t)mp.census_width, (uint8_t)mp.census_height, (uint32_t)mp.max_disp,
+            (uint8_t)mp.block_width, (uint8_t)mp.block_height, (uint8_t)mp.p1_penalty, (uint8_t)mp.p2_penalty,
+            (uint8_t)mp.uniqueness_ratio, (uint8_t)mp.lr_max_diff, (uint8_t)mp.median_filter_size);
+        printf("Collecting STEREO depth: %dx%d baseline=%.3f\n",
+               stereo_camera.image_width, stereo_camera.image_height, baseline);
+    }
 
     // 2. 地图参数
     float resolution = config["resolution"].as<float>();
@@ -213,10 +245,18 @@ int main(int argc, char **argv)
                                      pos.x(), pos.y(), pos.z());
 
             cv::Mat depth_image;
-            renderDepthImage(&grid_map, &camera, T_wc, depth_image);
+            if (collect_stereo) {
+                // 右相机：沿相机“右”方向平移 baseline（相机系偏移 = (0, -B, 0)）
+                Eigen::Vector3f pos_r = pos + quat_wc * Eigen::Vector3f(0.0f, -baseline, 0.0f);
+                cudaMat::SE3<float> T_wc_r(quat_wc.w(), quat_wc.x(), quat_wc.y(), quat_wc.z(),
+                                           pos_r.x(), pos_r.y(), pos_r.z());
+                renderStereoImage(&grid_map, &stereo_camera, T_wc, T_wc_r, tex, stereo_engine, depth_image);
+            } else {
+                renderDepthImage(&grid_map, &camera, T_wc, depth_image);
+            }
 
             std::string filename = image_path + "/img_" + std::to_string(image_i) + ".png";
-            saveDepthAs16BitPNG(depth_image, camera.max_depth_dist, filename);
+            saveDepthAs16BitPNG(depth_image, collect_stereo ? stereo_camera.max_depth_dist : camera.max_depth_dist, filename);
 
             pose_file << std::fixed << std::setprecision(6)
                       << pos.x() << "," << pos.y() << "," << pos.z() << ","

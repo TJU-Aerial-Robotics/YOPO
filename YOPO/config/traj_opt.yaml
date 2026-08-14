@@ -1,52 +1,71 @@
-# IMPORTANT: velocity in testing (modifiable)
+# ===================== YOPO planning config =====================
+# speed at test time (modifiable)
 velocity: 6.0
 
-# IMPORTANT: vel_max and acc_max in training
-# not the actual values in testing, ensure consistency between testing and training, please refer to ../policy/primitive.py
+# ===================== YOPO training config =====================
+# keep training and testing consistent
 vel_max_train: 6.0
 acc_max_train: 6.0
+jerk_max_train: 60.0
 
-# IMPORTANT: weight of costs for unit speed (can be visualized in tensorboard)
-wg: 0.15   # guidance     (approaching the goal)
-ws: 10.0   # smoothness   (smaller jerk)
-wa: 1.0    # acceleration (smaller acceleration)
-wc: 1.0    # collision    (distance to obstacle)
+# ---- Important cost weights ----
+wc: 1.0     # collision    (distance to obstacle)
+wg: 0.6     # guidance     (approaching the goal)
+ws: 0.002   # smoothness   (∫ jerk²)
+# ---- Not Important cost weights ----
+wt: 1.5     # total-time   (faster)
+wf: 1.5     # feasibility  (speed / accel / jerk limits + shaping hinges)
+wa: 0.002   # acceleration (∫ acc²)
 
-# dataset: set image_size = primitive_num × downsampling_factor (×32 for ResNet-18) in each axis
+# ---- Extra loss terms ----
+rank_weight: 1.0     # score loss: top-1 ranking cross-entropy on the score head
+w_inner_reg: 3.0     # inner-waypoint Δr² centring regularizer (0 disables)
+w_radius: 1.0        # weight of the safe corridor radius loss
+
+# ---- Speed limit (within wf; 0 disables each) ----
+yaw_vlim_weight: 0.2   # heading-gated speed limit ("fly fast only toward the goal"); 0.2 avoids over-capping cruise
+tail_stop_weight: 1.0  # near-goal stop: penalize endpoint speed when the goal is near
+lat_acc_ratio: 0.8     # curvature speed cap: turning-acc budget as a fraction of acc_max_train (<1 keeps tangential margin)
+lat_acc_weight: 1.0    # curvature speed cap strength
+
+# ---- Dataset ----
 dataset_path: "../dataset"
-image_height: 96
-image_width: 160
+downsample_factor: 32  # backbone reduction (32: ResNet-18, 16: ResNet-14); image = [vertical_num, horizon_num] × factor
 
-# trajectory and primitive param (Note: traj_time = 2 * radio / vel_max) (can be visualized in rviz)
-horizon_num: 5
+# ---- Trajectory ----
+horizon_num: 5             # anchor grid: columns (yaw) × rows (pitch)
 vertical_num: 3
-horizon_camera_fov: 90.0
+horizon_camera_fov: 90.0   # depth-camera FOV (deg); also the tail yaw/pitch decode range
 vertical_camera_fov: 60.0
-horizon_anchor_fov: 30.0
+horizon_anchor_fov: 30.0   # per-anchor inner-waypoint search cone (deg)
 vertical_anchor_fov: 30.0
-radio_range: 5.0    # planning horizon: 2 * radio_range
-radio_num: 1        # only support 1 currently
+tail_radio_max: 10.0       # tail distance upper bound (m); also the inner-waypoint reach & goal_length
 
-# safety penalties
+# ---- Safety-corridor head: predict μ + confidence b of the ESDF at trajectory. Warped y = 1-exp(-d/λ) ----
+radius_num: 10           # time-uniform corridor samples per trajectory
+radius_warp_lambda: 2.0  # λ (m): precision fades beyond this distance
+radius_over_weight: 3.0  # NLL weight when μ > truth (over-estimating clearance is dangerous)
+radius_b_min: 0.02       # bounds of the learned Laplace scale b
+radius_b_max: 0.5
+
+# ---- Safety penalty (exponential SDF barrier) ----
 d0: 1.2
 r: 0.6
+safety_beta: 4.0   # logsumexp sharpness over samples (→ mean as β→0, → max as β→∞)
+d_safe: 2.0        # clearance threshold (m): penalty active only when SDF < d_safe
 
-# distribution for unit state sampling (can be visualized by 'python ./policy/yopo_dataset.py')
-vx_mean_unit: 0.4
-vy_mean_unit: 0.0
-vz_mean_unit: 0.0
-vx_std_unit: 2.0
-vy_std_unit: 0.45
-vz_std_unit: 0.3
-ax_mean_unit: 0.0
-ay_mean_unit: 0.0
-az_mean_unit: 0.0
-ax_std_unit: 0.5
-ay_std_unit: 0.5
-az_std_unit: 0.3
-goal_pitch_std: 10.0  # clip goal_length to: 2 * radio_range; 10% probability [0, 2 * radio_range]
+# ---- Training-state sampling (visualize with 'python ./policy/yopo_dataset.py') ----
+# random current state at unit speed, [x, y, z]
+v_mean_unit: [0.4, 0.0, 0.0]
+v_std_unit:  [2.0, 0.45, 0.3]
+a_mean_unit: [0.0, 0.0, 0.0]
+a_std_unit:  [0.5, 0.5, 0.3]
+# random goal: direction std (deg) and world-frame altitude band (m)
+goal_pitch_std: 10.0
 goal_yaw_std: 20.0
+goal_height_range: [0.5, 2.5]
 
-# extend the map to avoid trajectory exceeding bounds (especially in z-axis) and treating the sky outside the map as obstacle
+# ---- Map ----
+# expand map bounds (esp. z) so trajectories stay inside and the sky isn't treated as an obstacle
 map_expand_min: [0, 0, 0.2]
 map_expand_max: [0, 0, 6.0]

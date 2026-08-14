@@ -1,4 +1,4 @@
-# 真实环境点云/深度图仿真(支持CUDA)
+# 真实环境点云/深度图仿真(支持CUDA, Stereo Depth)
 
 ### 1 依赖
 
@@ -65,8 +65,29 @@ gpu 版本 (RTX 3060)：
 GPU版资源占用(开30HZ)：
 ![Demo GIF](img/resource.png)
 
-### 6 示例场景
+### 6 双目深度
+在[config](config/config.yaml)中开启`render_stereo`以渲染双目深度：
 
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="img/depth.jpg" width="300"/>
+      <br/>
+      1. Ground-Truth Depth
+    </td>
+    <td align="center">
+      <img src="img/stereo.jpg" width="300"/>
+      <br/>
+      2. Stereo Depth
+    </td>
+  </tr>
+</table>
+
+### 7 示例场景
+场景：
+![Demo GIF](img/scene.jpg)
+
+感知：
 <table>
   <tr>
     <td align="center">
@@ -104,6 +125,8 @@ GPU版资源占用(开30HZ)：
 
 1. GPU版本地图无边界可无限延伸; CPU版本地图有边界（可选择复制地图几份，已弃用）
 
-### acknowledgment
+### Acknowledgment
 
-Some maps (3D Perlin, random maze) are generated based on: https://github.com/HKUST-Aerial-Robotics/mockamap, thanks for their excellent work!
+Some maps (3D Perlin, random maze) are generated based on: https://github.com/HKUST-Aerial-Robotics/mockamap, 
+stereo depth matching is based on: https://github.com/angli66/simsense,
+thanks for their excellent work!
