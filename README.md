@@ -17,7 +17,6 @@ Some realworld experiment: [YouTube](https://youtu.be/LHvtbKmTwvE), [bilibili](h
   </tr>
 </table>
 
-**Faster and Simpler:** The code is greatly simplified and refactored in Python/PyTorch. We also replaced the simulator with our CUDA-accelerated randomized environment, which is faster, lightweight, and boundless. For the stable version consistent with our paper, please refer to the [main](https://github.com/TJU-Aerial-Robotics/YOPO/tree/main) branch.
 
 ### Hardware:
 Our drone designed by [@Mioulo](https://github.com/Mioulo) is also open-source. The hardware components are listed in [hardware_list.pdf](hardware/hardware_list.pdf), and the SolidWorks file of carbon fiber frame can be found in [/hardware](hardware/) (complete assembly files are included in the [Release](https://github.com/TJU-Aerial-Robotics/YOPO/releases/tag/hardware)).
@@ -42,6 +41,17 @@ We propose **a learning-based planner for autonomous navigation in obstacle-dens
     </tr>
 </table>
 
+### Updates
+
+- **[2026-08-14]** We adopt [MINCO](https://github.com/ZJU-FAST-Lab/GCOPTER) as YOPO's trajectory representation, along with several other improvements. Please refer to the [YOPO-MINCO](https://github.com/TJU-Aerial-Robotics/YOPO/tree/YOPO-MINCO) branch. A simple comparison:
+
+<p align="center">
+    <img src="docs/yopo_minco.png" alt="compare" />
+</p>
+
+- **[2025-6-17]** The code is greatly simplified and refactored in Python/PyTorch. We also replaced the simulator with our CUDA-accelerated randomized environment, which is faster, lightweight, and boundless. For the stable version consistent with our paper, please refer to the [main](https://github.com/TJU-Aerial-Robotics/YOPO/tree/main) branch.
+
+---
 
 ## Installation
 
