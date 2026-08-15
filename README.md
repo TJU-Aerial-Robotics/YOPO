@@ -6,7 +6,7 @@ We adopt [MINCO](https://github.com/ZJU-FAST-Lab/GCOPTER) as YOPO's trajectory r
     <img src="docs/compare.png" alt="compare" />
 </p>
 
-- Demo: trajectories and safe flight corridor:
+- Optimal Trajectory | All Trajectories | All Trajectories | Safe Corridor:
 <p align="center">
     <img src="docs/minco_demo.gif" alt="demo" />
 </p>
