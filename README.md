@@ -11,6 +11,8 @@ We adopt [MINCO](https://github.com/ZJU-FAST-Lab/GCOPTER) as YOPO's trajectory r
     <img src="docs/minco_demo.gif" alt="demo" />
 </p>
 
+Build and usage are the same as the YOPO-Simple branch. See below:
+
 --------
 
 # You Only Plan Once
@@ -63,7 +65,7 @@ The project was tested with Ubuntu 20.04 and Jetson Orin/Xavier NX. We assume th
 
 **1. Clone the Code**
 ```
-git clone --depth 1 git@github.com:TJU-Aerial-Robotics/YOPO.git
+git clone --branch YOPO-MINCO --depth 1 git@github.com:TJU-Aerial-Robotics/YOPO.git
 ```
 
 **2. Create Virtual Environment**
